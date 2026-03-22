@@ -54,7 +54,7 @@ export default function Register() {
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
               <Activity className="w-4 h-4 text-white" />
             </div>
-            <span className="text-lg font-bold text-slate-100">XProxy<span className="gradient-text">pass</span></span>
+            <span className="text-lg font-bold text-slate-100">Proxy<span className="gradient-text">XPass</span></span>
           </div>
 
           <h1 className="text-2xl font-bold text-slate-100 mt-6 mb-1">Create your account</h1>

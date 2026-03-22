@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
 import {
   Shield, Zap, LayoutDashboard, Users, HeadphonesIcon,
   Globe, UserPlus, ArrowRight, MousePointer, Server, Activity
@@ -7,9 +8,64 @@ import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import FeatureCard from '../components/FeatureCard';
 import FAQItem from '../components/FAQItem';
-import StatsCard from '../components/StatsCard';
+
+function AnimatedCounter({ value, label, icon: Icon }) {
+  const [count, setCount] = useState(0);
+  const ref = useRef(null);
+  const animated = useRef(false);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !animated.current) {
+          animated.current = true;
+          const target = value;
+          const duration = 2000;
+          const steps = 60;
+          const increment = target / steps;
+          let current = 0;
+          const timer = setInterval(() => {
+            current += increment;
+            if (current >= target) {
+              setCount(target);
+              clearInterval(timer);
+            } else {
+              setCount(Math.floor(current));
+            }
+          }, duration / steps);
+        }
+      },
+      { threshold: 0.3 }
+    );
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, [value]);
+
+  return (
+    <div ref={ref} className="text-center">
+      <div className="flex items-center justify-center mb-3">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/10 to-blue-500/10 border border-cyan-500/10 flex items-center justify-center">
+          <Icon className="w-5 h-5 text-cyan-400" />
+        </div>
+      </div>
+      <div className="text-3xl md:text-4xl font-bold text-slate-100 mb-1">
+        {count.toLocaleString()}
+      </div>
+      <div className="text-sm text-slate-500">{label}</div>
+    </div>
+  );
+}
 
 export default function Landing() {
+  const [stats, setStats] = useState({ total_users: 0, total_proxies: 0, total_requests: 0 });
+
+  useEffect(() => {
+    fetch('/api/stats/global')
+      .then(r => r.json())
+      .then(data => setStats(data.stats))
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="min-h-screen">
       <Navbar />
@@ -43,7 +99,7 @@ export default function Landing() {
             <Link to="/register" className="btn-primary text-base px-8 py-3.5 flex items-center justify-center gap-2">
               Get Started <ArrowRight className="w-4 h-4" />
             </Link>
-            <a href="#features" className="btn-secondary text-base px-8 py-3.5">
+            <a href="#features" className="btn-secondary text-base px-8 py-3.5 flex items-center justify-center">
               Learn More
             </a>
           </div>
@@ -56,7 +112,7 @@ export default function Landing() {
                 <div className="w-3 h-3 rounded-full bg-green-500/60" />
               </div>
               <div className="font-mono text-sm text-slate-400 text-left space-y-2">
-                <p><span className="text-cyan-400">$</span> xproxypass add --subdomain mysite</p>
+                <p><span className="text-cyan-400">$</span> proxyxpass add --subdomain mysite</p>
                 <p className="text-slate-600">  Target URL: https://my-backend.com</p>
                 <p className="text-emerald-400/70">  Proxy deployed at mysite.yourdomain.com</p>
                 <p className="text-slate-600">  Status: <span className="text-emerald-400/70">active</span></p>
@@ -70,13 +126,13 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Stats */}
+      {/* Stats - Real Data */}
       <section className="relative py-20 border-y border-white/[0.04]">
         <div className="max-w-5xl mx-auto px-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-            <StatsCard icon={MousePointer} value="1200000" label="Links clicked per day" />
-            <StatsCard icon={Globe} value="348000000" label="Total proxy links" />
-            <StatsCard icon={Users} value="1180000" label="Happy users registered" />
+            <AnimatedCounter icon={Users} value={stats.total_users} label="Registered Users" />
+            <AnimatedCounter icon={Globe} value={stats.total_proxies} label="Active Proxies" />
+            <AnimatedCounter icon={Activity} value={stats.total_requests} label="Total Requests" />
           </div>
         </div>
       </section>
@@ -86,7 +142,7 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-slate-100 mb-4">
-              Why Choose <span className="gradient-text">XProxypass</span>
+              Why Choose <span className="gradient-text">ProxyXPass</span>
             </h2>
             <p className="text-slate-400 max-w-xl mx-auto">
               Everything you need to proxy, protect, and accelerate your web services.
@@ -180,24 +236,24 @@ export default function Landing() {
 
           <div className="space-y-3">
             <FAQItem
-              question="What is XProxypass?"
-              answer="XProxypass is a software-based CDN and reverse proxy service. It allows you to create proxy endpoints for your websites, routing traffic through our distributed network for better performance and reliability."
+              question="What is ProxyXPass?"
+              answer="ProxyXPass is a software-based CDN and reverse proxy service. It allows you to create proxy endpoints for your websites, routing traffic through our distributed network for better performance and reliability."
             />
             <FAQItem
-              question="How do I use XProxypass?"
+              question="How do I use ProxyXPass?"
               answer="Simply create an account, go to your dashboard, and add a new proxy. Enter your backend URL (e.g., https://your-site.com) and choose a subdomain. Your proxy will be deployed instantly and accessible via your-subdomain.yourdomain.com."
             />
             <FAQItem
-              question="Does XProxypass forward the real IP?"
-              answer="Yes. XProxypass forwards the original visitor's IP address through the X-Forwarded-For and X-Real-IP headers. Your backend service can read these headers to get the actual client IP address."
+              question="Does ProxyXPass forward the real IP?"
+              answer="Yes. ProxyXPass forwards the original visitor's IP address through the X-Forwarded-For and X-Real-IP headers. Your backend service can read these headers to get the actual client IP address."
             />
             <FAQItem
-              question="Does XProxypass support WebSockets?"
-              answer="Yes. XProxypass fully supports WebSocket connections. All WebSocket upgrade requests are automatically proxied to your backend server, enabling real-time applications to work seamlessly."
+              question="Does ProxyXPass support WebSockets?"
+              answer="Yes. ProxyXPass fully supports WebSocket connections. All WebSocket upgrade requests are automatically proxied to your backend server, enabling real-time applications to work seamlessly."
             />
             <FAQItem
               question="What about HTTPS and SSL?"
-              answer="XProxypass handles SSL termination automatically. Your proxy endpoints are accessible via both HTTP and HTTPS. SSL certificates are provisioned and renewed automatically using Let's Encrypt."
+              answer="ProxyXPass handles SSL termination automatically. Your proxy endpoints are accessible via both HTTP and HTTPS. SSL certificates are provisioned and renewed automatically using Let's Encrypt."
             />
           </div>
         </div>

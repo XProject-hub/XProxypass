@@ -18,7 +18,7 @@ export default function Navbar() {
               <Activity className="w-4 h-4 text-white" />
             </div>
             <span className="text-lg font-bold text-slate-100 tracking-tight">
-              XProxy<span className="gradient-text">pass</span>
+              Proxy<span className="gradient-text">XPass</span>
             </span>
           </Link>
 
@@ -54,7 +54,7 @@ export default function Navbar() {
                 <Link to="/dashboard" className="px-4 py-2 text-sm text-slate-300 hover:text-slate-100 transition-colors">
                   Dashboard
                 </Link>
-                <button onClick={logout} className="btn-secondary text-sm !py-2 !px-4">
+                <button onClick={logout} className="btn-secondary text-sm" style={{ padding: '0.5rem 1rem' }}>
                   Logout
                 </button>
               </>
@@ -63,7 +63,7 @@ export default function Navbar() {
                 <Link to="/login" className="px-4 py-2 text-sm text-slate-300 hover:text-slate-100 transition-colors">
                   Login
                 </Link>
-                <Link to="/register" className="btn-primary text-sm !py-2 !px-5">
+                <Link to="/register" className="btn-primary text-sm" style={{ padding: '0.5rem 1.25rem' }}>
                   Get Started
                 </Link>
               </>

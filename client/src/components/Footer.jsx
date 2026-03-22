@@ -12,7 +12,7 @@ export default function Footer() {
                 <Activity className="w-4 h-4 text-white" />
               </div>
               <span className="text-lg font-bold text-slate-100 tracking-tight">
-                XProxy<span className="gradient-text">pass</span>
+                Proxy<span className="gradient-text">XPass</span>
               </span>
             </Link>
             <p className="text-slate-500 text-sm leading-relaxed max-w-sm">
@@ -41,7 +41,7 @@ export default function Footer() {
 
         <div className="mt-12 pt-8 border-t border-white/[0.06] flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-sm text-slate-600">
-            &copy; {new Date().getFullYear()} XProxypass. All rights reserved.
+            &copy; {new Date().getFullYear()} ProxyXPass. All rights reserved.
           </p>
           <div className="flex items-center gap-4">
             <a href="#" className="text-slate-600 hover:text-cyan-400 transition-colors">
