@@ -252,13 +252,16 @@ router.get('/servers', (req, res) => {
 
 router.post('/servers', async (req, res) => {
   try {
-    const { ip, ssh_port, username, password, country, label } = req.body;
+    const { ip, ssh_port, username, password, country, label, max_connections } = req.body;
 
     if (!ip || !password || !country) {
       return res.status(400).json({ error: 'IP, password, and country are required' });
     }
 
     const result = db.addServer(ip, 3128, country.toUpperCase(), label || `${country} Server`, 'installing');
+    if (max_connections) {
+      db.updateServerMaxConn(result.lastInsertRowid, parseInt(max_connections) || 100);
+    }
     const server = db.getServerById(result.lastInsertRowid);
 
     db.addActivityLog(req.user.id, req.user.username, req.ip, 'Server', 'AddStart', `${ip} (${country})`);
@@ -279,6 +282,16 @@ router.post('/servers', async (req, res) => {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+router.post('/servers/:id/max-connections', (req, res) => {
+  try {
+    const { max } = req.body;
+    const server = db.getServerById(req.params.id);
+    if (!server) return res.status(404).json({ error: 'Server not found' });
+    db.updateServerMaxConn(req.params.id, parseInt(max) || 100);
+    res.json({ message: 'Max connections updated' });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 router.post('/servers/:id/check', async (req, res) => {

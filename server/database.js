@@ -76,6 +76,7 @@ db.exec(`
     port INTEGER DEFAULT 3128,
     country TEXT NOT NULL,
     label TEXT,
+    max_connections INTEGER DEFAULT 100,
     status TEXT DEFAULT 'pending',
     last_check DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -104,6 +105,7 @@ try { db.exec('ALTER TABLE proxies ADD COLUMN stream_proxy INTEGER DEFAULT 0'); 
 try { db.exec('ALTER TABLE proxies ADD COLUMN bandwidth_used INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE proxies ADD COLUMN bandwidth_limit INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE proxies ADD COLUMN proxy_domain TEXT'); } catch {}
+try { db.exec('ALTER TABLE proxy_servers ADD COLUMN max_connections INTEGER DEFAULT 100'); } catch {}
 
 const COUNTRIES = [
   { code: 'auto', name: 'Auto (Nearest)' },
@@ -181,6 +183,7 @@ const stmts = {
   getServersByCountry: db.prepare("SELECT * FROM proxy_servers WHERE country = ? AND status = 'online'"),
   getServerById: db.prepare('SELECT * FROM proxy_servers WHERE id = ?'),
   updateServerStatus: db.prepare('UPDATE proxy_servers SET status = ?, last_check = CURRENT_TIMESTAMP WHERE id = ?'),
+  updateServerMaxConn: db.prepare('UPDATE proxy_servers SET max_connections = ? WHERE id = ?'),
   deleteServer: db.prepare('DELETE FROM proxy_servers WHERE id = ?'),
 
   getUserStats: db.prepare(`
@@ -261,6 +264,7 @@ module.exports = {
   getServersByCountry(country) { return stmts.getServersByCountry.all(country); },
   getServerById(id) { return stmts.getServerById.get(id); },
   updateServerStatus(id, status) { return stmts.updateServerStatus.run(status, id); },
+  updateServerMaxConn(id, max) { return stmts.updateServerMaxConn.run(max, id); },
   deleteServer(id) { return stmts.deleteServer.run(id); },
   getActivityLogs() { return stmts.getActivityLogs.all(); },
 

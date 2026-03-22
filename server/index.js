@@ -95,25 +95,51 @@ function getSubdomain(hostname) {
   return null;
 }
 
+const serverConnections = {};
+
 function getProxyAgent(country) {
-  if (!country || country === 'auto') return undefined;
+  if (!country || country === 'auto') return { agent: undefined, serverId: null };
 
   const ownServers = db.getServersByCountry(country.toUpperCase());
   if (ownServers.length > 0) {
-    const server = ownServers[Math.floor(Math.random() * ownServers.length)];
-    try {
-      if (HttpsProxyAgent) return new HttpsProxyAgent(`http://${server.ip}:${server.port}`);
-    } catch {}
+    const available = ownServers.filter(s => {
+      const current = serverConnections[s.id] || 0;
+      const max = s.max_connections || 100;
+      return current < max;
+    });
+
+    if (available.length > 0) {
+      available.sort((a, b) => (serverConnections[a.id] || 0) - (serverConnections[b.id] || 0));
+      const server = available[0];
+      try {
+        if (HttpsProxyAgent) {
+          return { agent: new HttpsProxyAgent(`http://${server.ip}:${server.port}`), serverId: server.id };
+        }
+      } catch {}
+    } else if (ownServers.length > 0) {
+      return { agent: null, serverId: 'full' };
+    }
   }
 
-  if (!HttpsProxyAgent) return undefined;
+  if (!HttpsProxyAgent) return { agent: undefined, serverId: null };
   const upstream = proxyPool.getRandomProxy(country);
-  if (!upstream) return undefined;
+  if (!upstream) return { agent: undefined, serverId: null };
   try {
-    return new HttpsProxyAgent(upstream.url);
+    return { agent: new HttpsProxyAgent(upstream.url), serverId: null };
   } catch {
-    return undefined;
+    return { agent: undefined, serverId: null };
   }
+}
+
+function addServerConnection(serverId) {
+  if (!serverId) return;
+  if (!serverConnections[serverId]) serverConnections[serverId] = 0;
+  serverConnections[serverId]++;
+}
+
+function removeServerConnection(serverId) {
+  if (!serverId) return;
+  if (serverConnections[serverId] > 0) serverConnections[serverId]--;
 }
 
 app.set('trust proxy', true);
@@ -191,9 +217,21 @@ app.use((req, res, next) => {
 
     if (!activeConnections[record.id]) activeConnections[record.id] = 0;
     activeConnections[record.id]++;
-    res.on('close', () => { if (activeConnections[record.id] > 0) activeConnections[record.id]--; });
 
-    const agent = getProxyAgent(record.country);
+    const { agent, serverId } = getProxyAgent(record.country);
+
+    if (serverId === 'full') {
+      activeConnections[record.id]--;
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'No servers available at the moment. All servers for this location are at capacity. Please try again later.' }));
+    }
+
+    addServerConnection(serverId);
+    res.on('close', () => {
+      if (activeConnections[record.id] > 0) activeConnections[record.id]--;
+      removeServerConnection(serverId);
+    });
+
     const proxyHost = `${subdomain}.${record.proxy_domain || domain || config.domain}`;
     const proxyOptions = {
       target: record.target_url,
@@ -330,6 +368,10 @@ app.use('/api/stats', statsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/paypal', paypalRoutes);
 
+app.get('/api/server-connections', (req, res) => {
+  res.json({ connections: serverConnections });
+});
+
 app.get('/api/proxy-pool/stats', (req, res) => {
   res.json(proxyPool.getStats());
 });
@@ -353,7 +395,10 @@ server.on('upgrade', (req, socket, head) => {
   if (result) {
     const record = db.getProxyBySubdomain(result.subdomain);
     if (record && record.is_active && !(record.expires_at && new Date(record.expires_at) < new Date())) {
-      const agent = getProxyAgent(record.country);
+      const { agent, serverId } = getProxyAgent(record.country);
+      if (serverId === 'full') { socket.destroy(); return; }
+      addServerConnection(serverId);
+      socket.on('close', () => removeServerConnection(serverId));
       const opts = { target: record.target_url, changeOrigin: true };
       if (agent) opts.agent = agent;
       proxy.ws(req, socket, head, opts);

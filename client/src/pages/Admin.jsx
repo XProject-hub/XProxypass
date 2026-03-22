@@ -37,7 +37,7 @@ export default function Admin() {
   const [creditModal, setCreditModal] = useState(null);
   const [creditAmount, setCreditAmount] = useState('');
   const [serverModal, setServerModal] = useState(false);
-  const [serverForm, setServerForm] = useState({ ip: '', ssh_port: '22', username: 'root', password: '', country: 'US', label: '' });
+  const [serverForm, setServerForm] = useState({ ip: '', ssh_port: '22', username: 'root', password: '', country: 'US', label: '', max_connections: '100' });
   const [serverInstalling, setServerInstalling] = useState(false);
 
   useEffect(() => { loadData(); }, []);
@@ -113,7 +113,7 @@ export default function Admin() {
       });
       if (res.ok) {
         setServerModal(false);
-        setServerForm({ ip: '', ssh_port: '22', username: 'root', password: '', country: 'US', label: '' });
+        setServerForm({ ip: '', ssh_port: '22', username: 'root', password: '', country: 'US', label: '', max_connections: '100' });
         loadData();
         setTimeout(loadData, 30000);
         setTimeout(loadData, 60000);
@@ -612,7 +612,7 @@ export default function Admin() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-white/[0.06]">
-                        {['ID', 'IP', 'Port', 'Country', 'Label', 'Status', 'Last Check', ''].map(h => (
+                        {['ID', 'IP', 'Country', 'Label', 'Max Conn', 'Status', ''].map(h => (
                           <th key={h} className="text-left px-4 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
@@ -621,10 +621,21 @@ export default function Admin() {
                       {servers.map(s => (
                         <tr key={s.id} className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
                           <td className="px-4 py-3 text-slate-600 font-mono text-xs">{s.id}</td>
-                          <td className="px-4 py-3 text-cyan-400 font-mono text-xs">{s.ip}</td>
-                          <td className="px-4 py-3 text-slate-400 text-xs">{s.port}</td>
+                          <td className="px-4 py-3 text-cyan-400 font-mono text-xs">{s.ip}:{s.port}</td>
                           <td className="px-4 py-3 text-slate-300 text-xs">{s.country}</td>
                           <td className="px-4 py-3 text-slate-400 text-xs">{s.label || '-'}</td>
+                          <td className="px-4 py-3">
+                            <input type="number" min="1" className="input-field text-xs w-16" style={{ padding: '0.2rem 0.4rem' }}
+                              key={`mc-${s.id}-${s.max_connections}`}
+                              defaultValue={s.max_connections || 100}
+                              onBlur={async (e) => {
+                                await fetch(`/api/admin/servers/${s.id}/max-connections`, {
+                                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ max: parseInt(e.target.value) || 100 }),
+                                });
+                              }}
+                            />
+                          </td>
                           <td className="px-4 py-3">
                             <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
                               s.status === 'online' ? 'text-emerald-400 bg-emerald-500/10' :
@@ -638,7 +649,6 @@ export default function Admin() {
                               {s.status}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-slate-500 text-xs">{s.last_check ? new Date(s.last_check).toLocaleString() : 'Never'}</td>
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-end gap-1">
                               <button onClick={() => checkServerHealth(s.id)} className="p-1.5 rounded-lg hover:bg-cyan-500/10 text-slate-600 hover:text-cyan-400 transition-all" title="Health Check">
@@ -689,10 +699,14 @@ export default function Admin() {
                   <input type="password" className="input-field text-xs" placeholder="server password" value={serverForm.password} onChange={e => setServerForm({...serverForm, password: e.target.value})} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="text-[10px] text-slate-500 uppercase tracking-wider mb-1 block">Country Code</label>
                   <input className="input-field text-xs" placeholder="US, DE, UK..." value={serverForm.country} onChange={e => setServerForm({...serverForm, country: e.target.value.toUpperCase()})} />
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-500 uppercase tracking-wider mb-1 block">Max Connections</label>
+                  <input type="number" className="input-field text-xs" placeholder="100" value={serverForm.max_connections} onChange={e => setServerForm({...serverForm, max_connections: e.target.value})} />
                 </div>
                 <div>
                   <label className="text-[10px] text-slate-500 uppercase tracking-wider mb-1 block">Label (optional)</label>
