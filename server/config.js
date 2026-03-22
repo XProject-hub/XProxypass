@@ -1,0 +1,9 @@
+require('dotenv').config();
+
+module.exports = {
+  port: parseInt(process.env.PORT, 10) || 3000,
+  domain: process.env.DOMAIN || 'localhost',
+  jwtSecret: process.env.JWT_SECRET || 'dev-secret-change-in-production',
+  jwtExpiry: process.env.JWT_EXPIRY || '7d',
+  nodeEnv: process.env.NODE_ENV || 'development',
+};
