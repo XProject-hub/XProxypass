@@ -109,7 +109,9 @@ export default function AddProxy() {
                     <select className="input-field pl-10 appearance-none cursor-pointer" value={form.country}
                       onChange={(e) => setForm({ ...form, country: e.target.value })}>
                       {countries.map(c => (
-                        <option key={c.code} value={c.code} style={{ background: '#0d0d14', color: '#f1f5f9' }}>{c.name}</option>
+                        <option key={c.code} value={c.code} style={{ background: '#0d0d14', color: '#f1f5f9' }}>
+                          {c.code === 'auto' ? c.name : `${c.code} - ${c.name}${c.verified ? ` (${c.verified} proxies)` : ''}`}
+                        </option>
                       ))}
                     </select>
                   </div>
