@@ -10,7 +10,13 @@ const RESERVED = new Set([
   'login', 'register', 'app', 'dev', 'staging', 'test',
 ]);
 
+const VALID_COUNTRIES = new Set(db.COUNTRIES.map(c => c.code));
+
 router.use(authenticate);
+
+router.get('/countries', (req, res) => {
+  res.json({ countries: db.COUNTRIES });
+});
 
 router.get('/', (req, res) => {
   try {
@@ -24,7 +30,7 @@ router.get('/', (req, res) => {
 
 router.post('/', (req, res) => {
   try {
-    const { subdomain, target_url, expires_at } = req.body;
+    const { subdomain, target_url, country, expires_at } = req.body;
 
     if (!subdomain || !target_url) {
       return res.status(400).json({ error: 'Subdomain and target URL are required' });
@@ -55,11 +61,11 @@ router.post('/', (req, res) => {
       return res.status(409).json({ error: 'Subdomain already taken' });
     }
 
-    try {
-      new URL(target_url);
-    } catch {
+    try { new URL(target_url); } catch {
       return res.status(400).json({ error: 'Invalid target URL' });
     }
+
+    const selectedCountry = (country && VALID_COUNTRIES.has(country)) ? country : 'auto';
 
     let expiry = null;
     if (expires_at) {
@@ -72,10 +78,14 @@ router.post('/', (req, res) => {
 
     if (!user.is_admin) {
       db.deductCredit(req.user.id);
+      const after = db.getUserById(req.user.id);
+      db.addCreditHistory(req.user.id, user.username, -1, after.credits, 'proxy_created', `Created proxy: ${sub}`);
     }
 
-    const result = db.createProxy(req.user.id, sub, target_url, expiry);
+    const result = db.createProxy(req.user.id, sub, target_url, selectedCountry, expiry);
     const proxy = db.getProxyById(result.lastInsertRowid);
+
+    db.addActivityLog(req.user.id, user.username, req.ip, 'Proxy', 'Create', `${sub} -> ${target_url} [${selectedCountry}]`);
 
     res.status(201).json({ proxy });
   } catch (err) {
@@ -88,12 +98,11 @@ router.patch('/:id/toggle', (req, res) => {
   try {
     const { id } = req.params;
     const result = db.toggleProxy(id, req.user.id);
-
-    if (result.changes === 0) {
-      return res.status(404).json({ error: 'Proxy not found' });
-    }
+    if (result.changes === 0) return res.status(404).json({ error: 'Proxy not found' });
 
     const proxy = db.getProxyById(id);
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Proxy', 'Toggle', `${proxy.subdomain} -> ${proxy.is_active ? 'active' : 'paused'}`);
+
     res.json({ proxy });
   } catch (err) {
     console.error('Toggle proxy error:', err);
@@ -104,10 +113,12 @@ router.patch('/:id/toggle', (req, res) => {
 router.delete('/:id', (req, res) => {
   try {
     const { id } = req.params;
+    const proxy = db.getProxyById(id);
     const result = db.deleteProxy(id, req.user.id);
+    if (result.changes === 0) return res.status(404).json({ error: 'Proxy not found' });
 
-    if (result.changes === 0) {
-      return res.status(404).json({ error: 'Proxy not found' });
+    if (proxy) {
+      db.addActivityLog(req.user.id, req.user.username, req.ip, 'Proxy', 'Delete', proxy.subdomain);
     }
 
     res.json({ message: 'Proxy deleted' });

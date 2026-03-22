@@ -49,6 +49,8 @@ router.post('/register', (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
+    db.addActivityLog(user.id, username, req.ip, 'Auth', 'Register', email);
+
     res.status(201).json({ user });
   } catch (err) {
     console.error('Register error:', err);
@@ -82,12 +84,15 @@ router.post('/login', (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
+    db.addActivityLog(user.id, user.username, req.ip, 'Auth', 'Login', user.email);
+
     res.json({
       user: {
         id: user.id,
         username: user.username,
         email: user.email,
         is_admin: user.is_admin,
+        credits: user.credits,
         created_at: user.created_at,
       },
     });
