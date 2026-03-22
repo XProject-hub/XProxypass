@@ -253,23 +253,41 @@ app.use((req, res, next) => {
       const escOrigin = targetOrigin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
       function rewriteUrl(str) {
-        if (!str || !targetHost) return str;
-        str = str.replace(new RegExp(`https?://www\\.${escHost}`, 'g'), `https://${proxyHost}`);
-        str = str.replace(new RegExp(escOrigin, 'g'), `https://${proxyHost}`);
-        str = str.replace(new RegExp(`http://${escHost}`, 'g'), `https://${proxyHost}`);
-        str = str.replace(new RegExp(`www\\.${escHost}`, 'g'), proxyHost);
-        str = str.replace(new RegExp(escHost, 'g'), proxyHost);
+        if (!str) return str;
+        if (targetHost) {
+          str = str.replace(new RegExp(`https?://www\\.${escHost}`, 'g'), `https://${proxyHost}`);
+          str = str.replace(new RegExp(escOrigin, 'g'), `https://${proxyHost}`);
+          str = str.replace(new RegExp(`http://${escHost}`, 'g'), `https://${proxyHost}`);
+          str = str.replace(new RegExp(`www\\.${escHost}`, 'g'), proxyHost);
+          str = str.replace(new RegExp(escHost, 'g'), proxyHost);
+        }
         str = str.replace(new RegExp(`www\\.${proxyHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g'), proxyHost);
+        return str;
+      }
+
+      function rewriteAllExternalUrls(str) {
+        if (!str) return str;
+        str = rewriteUrl(str);
+        if (record.stream_proxy === 2) {
+          str = str.replace(/https?:\/\/[a-zA-Z0-9.-]+(?::\d+)?/g, (match) => {
+            try {
+              const u = new URL(match);
+              if (u.host === proxyHost) return match;
+              if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return match;
+              return `https://${proxyHost}`;
+            } catch { return match; }
+          });
+        }
         return str;
       }
 
       const newHeaders = { ...proxyRes.headers };
 
       if (newHeaders.location) {
-        newHeaders.location = rewriteUrl(newHeaders.location);
+        newHeaders.location = rewriteAllExternalUrls(newHeaders.location);
       }
       if (newHeaders['content-location']) {
-        newHeaders['content-location'] = rewriteUrl(newHeaders['content-location']);
+        newHeaders['content-location'] = rewriteAllExternalUrls(newHeaders['content-location']);
       }
       if (newHeaders['set-cookie']) {
         newHeaders['set-cookie'] = (Array.isArray(newHeaders['set-cookie']) ? newHeaders['set-cookie'] : [newHeaders['set-cookie']])
@@ -313,7 +331,7 @@ app.use((req, res, next) => {
           if (encoding) raw = decompress(raw, encoding);
 
           let body = raw.toString('utf8');
-          body = rewriteUrl(body);
+          body = record.stream_proxy === 2 ? rewriteAllExternalUrls(body) : rewriteUrl(body);
 
           body = body.replace(/<base\s+href=["'][^"']*["']/gi, `<base href="https://${proxyHost}/"`);
 
