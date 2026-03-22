@@ -30,6 +30,7 @@ export default function Admin() {
   const [streamRequests, setStreamRequests] = useState([]);
   const [adminDomains, setAdminDomains] = useState([]);
   const [newDomain, setNewDomain] = useState('');
+  const [serverConns, setServerConns] = useState({});
   const [regOpen, setRegOpen] = useState(true);
   const [createUserModal, setCreateUserModal] = useState(false);
   const [newUser, setNewUser] = useState({ username: '', email: '', password: '', credits: '0' });
@@ -41,6 +42,17 @@ export default function Admin() {
   const [serverInstalling, setServerInstalling] = useState(false);
 
   useEffect(() => { loadData(); }, []);
+
+  useEffect(() => {
+    if (tab !== 'servers') return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/server-connections');
+        if (res.ok) setServerConns((await res.json()).connections || {});
+      } catch {}
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [tab]);
 
   const loadData = async () => {
     try {
@@ -60,6 +72,8 @@ export default function Admin() {
       if (svRes.ok) setServers((await svRes.json()).servers);
       const srRes = await fetch('/api/admin/stream-requests');
       if (srRes.ok) setStreamRequests((await srRes.json()).requests);
+      const scRes = await fetch('/api/server-connections');
+      if (scRes.ok) setServerConns((await scRes.json()).connections || {});
       const dmRes = await fetch('/api/admin/domains');
       if (dmRes.ok) setAdminDomains((await dmRes.json()).domains);
       const setRes = await fetch('/api/admin/settings');
@@ -612,7 +626,7 @@ export default function Admin() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-white/[0.06]">
-                        {['IP', 'Country', 'Label', 'Max Conn', 'Bandwidth', 'Status', ''].map(h => (
+                        {['IP', 'Country', 'Label', 'Usage', 'Max', 'BW', 'Status', ''].map(h => (
                           <th key={h} className="text-left px-3 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
@@ -623,6 +637,25 @@ export default function Admin() {
                           <td className="px-3 py-3 text-cyan-400 font-mono text-xs">{s.ip}:{s.port}</td>
                           <td className="px-3 py-3 text-slate-300 text-xs">{s.country}</td>
                           <td className="px-3 py-3 text-slate-400 text-xs">{s.label || '-'}</td>
+                          <td className="px-3 py-3">
+                            {(() => {
+                              const active = serverConns[s.id] || 0;
+                              const max = s.max_connections || 100;
+                              const pct = Math.min(100, (active / max) * 100);
+                              return (
+                                <div className="w-24">
+                                  <div className="flex items-center justify-between text-[10px] mb-1">
+                                    <span className={`font-semibold ${pct > 80 ? 'text-red-400' : pct > 50 ? 'text-amber-400' : 'text-emerald-400'}`}>{active}</span>
+                                    <span className="text-slate-600">/ {max}</span>
+                                  </div>
+                                  <div className="h-1.5 rounded-full bg-white/[0.05] overflow-hidden">
+                                    <div className={`h-full rounded-full transition-all ${pct > 80 ? 'bg-red-500' : pct > 50 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                                      style={{ width: `${pct}%` }} />
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </td>
                           <td className="px-3 py-3">
                             <input type="number" min="1" className="input-field text-xs w-16" style={{ padding: '0.2rem 0.4rem' }}
                               key={`mc-${s.id}-${s.max_connections}`}
