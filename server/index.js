@@ -194,6 +194,40 @@ app.use((req, res, next) => {
 
     proxy.once('proxyRes', (proxyRes, _req, _res) => {
       const contentType = proxyRes.headers['content-type'] || '';
+      let targetHost, targetOrigin;
+      try {
+        const targetUrl = new URL(record.target_url);
+        targetHost = targetUrl.host;
+        targetOrigin = targetUrl.origin;
+      } catch { targetHost = ''; targetOrigin = ''; }
+
+      const escHost = targetHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escOrigin = targetOrigin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+      function rewriteUrl(str) {
+        if (!str || !targetHost) return str;
+        str = str.replace(new RegExp(escOrigin, 'g'), `https://${proxyHost}`);
+        str = str.replace(new RegExp(`http://${escHost}`, 'g'), `https://${proxyHost}`);
+        str = str.replace(new RegExp(escHost, 'g'), proxyHost);
+        return str;
+      }
+
+      const newHeaders = { ...proxyRes.headers };
+
+      if (newHeaders.location) {
+        newHeaders.location = rewriteUrl(newHeaders.location);
+      }
+      if (newHeaders['content-location']) {
+        newHeaders['content-location'] = rewriteUrl(newHeaders['content-location']);
+      }
+      if (newHeaders['set-cookie']) {
+        newHeaders['set-cookie'] = (Array.isArray(newHeaders['set-cookie']) ? newHeaders['set-cookie'] : [newHeaders['set-cookie']])
+          .map(c => rewriteUrl(c.replace(new RegExp(`domain=\\.?${escHost}`, 'gi'), `domain=.${proxyHost}`)));
+      }
+      if (newHeaders.refresh) {
+        newHeaders.refresh = rewriteUrl(newHeaders.refresh);
+      }
+
       const isRewritable = contentType.includes('text') || contentType.includes('json') ||
         contentType.includes('mpegurl') || contentType.includes('x-mpegURL') ||
         contentType.includes('xml') || contentType.includes('vnd.apple') ||
@@ -204,17 +238,8 @@ app.use((req, res, next) => {
         proxyRes.on('data', chunk => chunks.push(chunk));
         proxyRes.on('end', () => {
           let body = Buffer.concat(chunks).toString('utf8');
-          try {
-            const targetUrl = new URL(record.target_url);
-            const targetHost = targetUrl.host;
-            const targetOrigin = targetUrl.origin;
+          body = rewriteUrl(body);
 
-            body = body.replace(new RegExp(targetOrigin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), `https://${proxyHost}`);
-            body = body.replace(new RegExp(`http://${targetHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g'), `https://${proxyHost}`);
-            body = body.replace(new RegExp(targetHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), proxyHost);
-          } catch {}
-
-          const newHeaders = { ...proxyRes.headers };
           delete newHeaders['content-length'];
           delete newHeaders['content-encoding'];
           newHeaders['transfer-encoding'] = 'chunked';
@@ -228,7 +253,6 @@ app.use((req, res, next) => {
           try { db.addBandwidth(bytes, record.id); } catch {}
         });
       } else {
-        const newHeaders = { ...proxyRes.headers };
         res.writeHead(proxyRes.statusCode, newHeaders);
         proxyRes.on('data', chunk => {
           res.write(chunk);
