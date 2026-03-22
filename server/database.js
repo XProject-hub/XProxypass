@@ -69,6 +69,17 @@ db.exec(`
     detail TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS proxy_servers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ip TEXT NOT NULL,
+    port INTEGER DEFAULT 3128,
+    country TEXT NOT NULL,
+    label TEXT,
+    status TEXT DEFAULT 'pending',
+    last_check DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 try { db.exec('ALTER TABLE users ADD COLUMN credits INTEGER DEFAULT 0'); } catch {}
@@ -124,6 +135,13 @@ const stmts = {
   addActivityLog: db.prepare('INSERT INTO activity_logs (user_id, username, ip_address, module, operation, detail) VALUES (?, ?, ?, ?, ?, ?)'),
   getActivityLogs: db.prepare('SELECT * FROM activity_logs ORDER BY created_at DESC LIMIT 200'),
 
+  addServer: db.prepare('INSERT INTO proxy_servers (ip, port, country, label, status) VALUES (?, ?, ?, ?, ?)'),
+  getAllServers: db.prepare('SELECT * FROM proxy_servers ORDER BY created_at DESC'),
+  getServersByCountry: db.prepare('SELECT * FROM proxy_servers WHERE country = ? AND status = "online"'),
+  getServerById: db.prepare('SELECT * FROM proxy_servers WHERE id = ?'),
+  updateServerStatus: db.prepare('UPDATE proxy_servers SET status = ?, last_check = CURRENT_TIMESTAMP WHERE id = ?'),
+  deleteServer: db.prepare('DELETE FROM proxy_servers WHERE id = ?'),
+
   getUserStats: db.prepare(`
     SELECT COUNT(*) as total_proxies,
       COALESCE(SUM(requests_count), 0) as total_requests,
@@ -174,6 +192,13 @@ module.exports = {
   addActivityLog(userId, username, ip, module, operation, detail) {
     return stmts.addActivityLog.run(userId || null, username || null, ip || null, module, operation, detail || null);
   },
+
+  addServer(ip, port, country, label, status) { return stmts.addServer.run(ip, port, country, label || null, status || 'pending'); },
+  getAllServers() { return stmts.getAllServers.all(); },
+  getServersByCountry(country) { return stmts.getServersByCountry.all(country); },
+  getServerById(id) { return stmts.getServerById.get(id); },
+  updateServerStatus(id, status) { return stmts.updateServerStatus.run(status, id); },
+  deleteServer(id) { return stmts.deleteServer.run(id); },
   getActivityLogs() { return stmts.getActivityLogs.all(); },
 
   getUserStats(userId) { return stmts.getUserStats.get(userId); },

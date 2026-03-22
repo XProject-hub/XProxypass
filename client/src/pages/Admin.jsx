@@ -4,12 +4,13 @@ import Navbar from '../components/Navbar';
 import {
   Users, Globe, Activity, Trash2, Shield, ShieldOff,
   Plus, Loader2, ArrowLeft, CreditCard, ScrollText,
-  LayoutList, Clock, MapPin
+  LayoutList, Clock, MapPin, Server, RefreshCw, Wifi, WifiOff, CheckCircle2
 } from 'lucide-react';
 
 const TABS = [
   { id: 'proxies', label: 'Proxies', icon: Globe },
   { id: 'users', label: 'Users', icon: Users },
+  { id: 'servers', label: 'Servers', icon: Server },
   { id: 'credits', label: 'Credit History', icon: CreditCard },
   { id: 'activity', label: 'Activity Log', icon: ScrollText },
 ];
@@ -21,26 +22,32 @@ export default function Admin() {
   const [stats, setStats] = useState(null);
   const [creditHistory, setCreditHistory] = useState([]);
   const [activityLogs, setActivityLogs] = useState([]);
+  const [servers, setServers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [creditModal, setCreditModal] = useState(null);
   const [creditAmount, setCreditAmount] = useState('');
+  const [serverModal, setServerModal] = useState(false);
+  const [serverForm, setServerForm] = useState({ ip: '', ssh_port: '22', username: 'root', password: '', country: 'US', label: '' });
+  const [serverInstalling, setServerInstalling] = useState(false);
 
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     try {
-      const [uRes, pRes, sRes, chRes, alRes] = await Promise.all([
+      const [uRes, pRes, sRes, chRes, alRes, svRes] = await Promise.all([
         fetch('/api/admin/users'),
         fetch('/api/admin/proxies'),
         fetch('/api/admin/stats'),
         fetch('/api/admin/credit-history'),
         fetch('/api/admin/activity-log'),
+        fetch('/api/admin/servers'),
       ]);
       if (uRes.ok) setUsers((await uRes.json()).users);
       if (pRes.ok) setProxies((await pRes.json()).proxies);
       if (sRes.ok) setStats((await sRes.json()).stats);
       if (chRes.ok) setCreditHistory((await chRes.json()).history);
       if (alRes.ok) setActivityLogs((await alRes.json()).logs);
+      if (svRes.ok) setServers((await svRes.json()).servers);
     } catch (err) {
       console.error('Admin load error:', err);
     } finally {
@@ -78,6 +85,37 @@ export default function Admin() {
       setCreditAmount('');
       loadData();
     }
+  };
+
+  const addServer = async () => {
+    if (!serverForm.ip || !serverForm.password || !serverForm.country) return;
+    setServerInstalling(true);
+    try {
+      const res = await fetch('/api/admin/servers', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(serverForm),
+      });
+      if (res.ok) {
+        setServerModal(false);
+        setServerForm({ ip: '', ssh_port: '22', username: 'root', password: '', country: 'US', label: '' });
+        loadData();
+        setTimeout(loadData, 30000);
+        setTimeout(loadData, 60000);
+        setTimeout(loadData, 120000);
+      }
+    } catch (err) { console.error(err); }
+    finally { setServerInstalling(false); }
+  };
+
+  const checkServerHealth = async (id) => {
+    const res = await fetch(`/api/admin/servers/${id}/check`, { method: 'POST' });
+    if (res.ok) loadData();
+  };
+
+  const deleteServerItem = async (id) => {
+    if (!confirm('Delete this server?')) return;
+    const res = await fetch(`/api/admin/servers/${id}`, { method: 'DELETE' });
+    if (res.ok) setServers(prev => prev.filter(s => s.id !== id));
   };
 
   const deleteProxy = async (id) => {
@@ -319,8 +357,128 @@ export default function Admin() {
               </div>
             </div>
           )}
+
+          {/* Servers Tab */}
+          {tab === 'servers' && (
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-slate-100">Proxy Servers</h2>
+                <button onClick={() => setServerModal(true)} className="btn-primary text-xs flex items-center gap-2" style={{ padding: '0.5rem 1rem' }}>
+                  <Plus className="w-3.5 h-3.5" /> Add Server
+                </button>
+              </div>
+
+              <div className="glass rounded-xl p-4 mb-6">
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Add your own VPS servers as proxy nodes. Enter the server IP, SSH credentials, and country - the system will automatically connect via SSH and install Squid proxy.
+                  Own servers have priority over free proxies for country routing.
+                </p>
+              </div>
+
+              <div className="glass rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-white/[0.06]">
+                        {['ID', 'IP', 'Port', 'Country', 'Label', 'Status', 'Last Check', ''].map(h => (
+                          <th key={h} className="text-left px-4 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {servers.map(s => (
+                        <tr key={s.id} className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
+                          <td className="px-4 py-3 text-slate-600 font-mono text-xs">{s.id}</td>
+                          <td className="px-4 py-3 text-cyan-400 font-mono text-xs">{s.ip}</td>
+                          <td className="px-4 py-3 text-slate-400 text-xs">{s.port}</td>
+                          <td className="px-4 py-3 text-slate-300 text-xs">{s.country}</td>
+                          <td className="px-4 py-3 text-slate-400 text-xs">{s.label || '-'}</td>
+                          <td className="px-4 py-3">
+                            <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
+                              s.status === 'online' ? 'text-emerald-400 bg-emerald-500/10' :
+                              s.status === 'installing' ? 'text-amber-400 bg-amber-500/10' :
+                              s.status === 'error' ? 'text-red-400 bg-red-500/10' :
+                              'text-slate-500 bg-white/[0.03]'
+                            }`}>
+                              {s.status === 'online' && <Wifi className="w-2.5 h-2.5" />}
+                              {s.status === 'offline' && <WifiOff className="w-2.5 h-2.5" />}
+                              {s.status === 'installing' && <Loader2 className="w-2.5 h-2.5 animate-spin" />}
+                              {s.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-500 text-xs">{s.last_check ? new Date(s.last_check).toLocaleString() : 'Never'}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-1">
+                              <button onClick={() => checkServerHealth(s.id)} className="p-1.5 rounded-lg hover:bg-cyan-500/10 text-slate-600 hover:text-cyan-400 transition-all" title="Health Check">
+                                <RefreshCw className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => deleteServerItem(s.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-slate-600 hover:text-red-400 transition-all" title="Delete">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {servers.length === 0 && <div className="text-center py-10 text-slate-600 text-sm">No servers added yet. Click "Add Server" to deploy a proxy node.</div>}
+              </div>
+            </div>
+          )}
         </main>
       </div>
+
+      {/* Server Modal */}
+      {serverModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={() => !serverInstalling && setServerModal(false)}>
+          <div className="glass rounded-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-slate-100 mb-1">Add Proxy Server</h3>
+            <p className="text-xs text-slate-500 mb-5">Enter VPS credentials. Squid proxy will be installed automatically via SSH.</p>
+
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] text-slate-500 uppercase tracking-wider mb-1 block">Server IP</label>
+                  <input className="input-field text-xs" placeholder="1.2.3.4" value={serverForm.ip} onChange={e => setServerForm({...serverForm, ip: e.target.value})} />
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-500 uppercase tracking-wider mb-1 block">SSH Port</label>
+                  <input className="input-field text-xs" placeholder="22" value={serverForm.ssh_port} onChange={e => setServerForm({...serverForm, ssh_port: e.target.value})} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] text-slate-500 uppercase tracking-wider mb-1 block">Username</label>
+                  <input className="input-field text-xs" placeholder="root" value={serverForm.username} onChange={e => setServerForm({...serverForm, username: e.target.value})} />
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-500 uppercase tracking-wider mb-1 block">Password</label>
+                  <input type="password" className="input-field text-xs" placeholder="server password" value={serverForm.password} onChange={e => setServerForm({...serverForm, password: e.target.value})} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] text-slate-500 uppercase tracking-wider mb-1 block">Country Code</label>
+                  <input className="input-field text-xs" placeholder="US, DE, UK..." value={serverForm.country} onChange={e => setServerForm({...serverForm, country: e.target.value.toUpperCase()})} />
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-500 uppercase tracking-wider mb-1 block">Label (optional)</label>
+                  <input className="input-field text-xs" placeholder="US Server 1" value={serverForm.label} onChange={e => setServerForm({...serverForm, label: e.target.value})} />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-5">
+              <button onClick={() => setServerModal(false)} disabled={serverInstalling} className="btn-secondary flex-1 text-xs" style={{ padding: '0.6rem 1rem' }}>Cancel</button>
+              <button onClick={addServer} disabled={serverInstalling || !serverForm.ip || !serverForm.password || !serverForm.country}
+                className="btn-primary flex-1 text-xs flex items-center justify-center gap-2" style={{ padding: '0.6rem 1rem' }}>
+                {serverInstalling ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Installing...</> : <><Server className="w-3.5 h-3.5" /> Install &amp; Add</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Credit Modal */}
       {creditModal && (

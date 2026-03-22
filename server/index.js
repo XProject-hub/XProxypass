@@ -74,7 +74,17 @@ function getSubdomain(hostname) {
 }
 
 function getProxyAgent(country) {
-  if (!country || country === 'auto' || !HttpsProxyAgent) return undefined;
+  if (!country || country === 'auto') return undefined;
+
+  const ownServers = db.getServersByCountry(country.toUpperCase());
+  if (ownServers.length > 0) {
+    const server = ownServers[Math.floor(Math.random() * ownServers.length)];
+    try {
+      if (HttpsProxyAgent) return new HttpsProxyAgent(`http://${server.ip}:${server.port}`);
+    } catch {}
+  }
+
+  if (!HttpsProxyAgent) return undefined;
   const upstream = proxyPool.getRandomProxy(country);
   if (!upstream) return undefined;
   try {

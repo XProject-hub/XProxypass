@@ -102,4 +102,69 @@ router.get('/stats', (req, res) => {
   catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
+// ── Server Management ──────────────────────────────
+
+const { setupServer, checkServer } = require('../server-setup');
+
+router.get('/servers', (req, res) => {
+  try { res.json({ servers: db.getAllServers() }); }
+  catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
+router.post('/servers', async (req, res) => {
+  try {
+    const { ip, ssh_port, username, password, country, label } = req.body;
+
+    if (!ip || !password || !country) {
+      return res.status(400).json({ error: 'IP, password, and country are required' });
+    }
+
+    const result = db.addServer(ip, 3128, country.toUpperCase(), label || `${country} Server`, 'installing');
+    const server = db.getServerById(result.lastInsertRowid);
+
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Server', 'AddStart', `${ip} (${country})`);
+
+    res.status(201).json({ server, message: 'Server added. Installation starting...' });
+
+    try {
+      await setupServer(ip, ssh_port || 22, username || 'root', password);
+      db.updateServerStatus(server.id, 'online');
+      db.addActivityLog(req.user.id, req.user.username, req.ip, 'Server', 'InstallSuccess', `${ip} (${country}) - Squid installed`);
+      console.log(`[Admin] Server ${ip} setup complete`);
+    } catch (err) {
+      db.updateServerStatus(server.id, 'error');
+      db.addActivityLog(req.user.id, req.user.username, req.ip, 'Server', 'InstallFailed', `${ip}: ${err.message}`);
+      console.error(`[Admin] Server ${ip} setup failed:`, err.message);
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/servers/:id/check', async (req, res) => {
+  try {
+    const server = db.getServerById(req.params.id);
+    if (!server) return res.status(404).json({ error: 'Server not found' });
+
+    const alive = await checkServer(server.ip, server.port);
+    const status = alive ? 'online' : 'offline';
+    db.updateServerStatus(server.id, status);
+
+    res.json({ server: { ...server, status, last_check: new Date().toISOString() } });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
+router.delete('/servers/:id', (req, res) => {
+  try {
+    const server = db.getServerById(req.params.id);
+    const result = db.deleteServer(req.params.id);
+    if (result.changes === 0) return res.status(404).json({ error: 'Server not found' });
+
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Server', 'Delete', server ? `${server.ip} (${server.country})` : req.params.id);
+
+    res.json({ message: 'Server deleted' });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
 module.exports = router;
