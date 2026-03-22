@@ -233,6 +233,12 @@ app.use((req, res, next) => {
       delete newHeaders['x-frame-options'];
       delete newHeaders['strict-transport-security'];
 
+      newHeaders['cache-control'] = 'no-store, no-cache, must-revalidate, proxy-revalidate';
+      newHeaders['pragma'] = 'no-cache';
+      newHeaders['expires'] = '0';
+      delete newHeaders['etag'];
+      delete newHeaders['last-modified'];
+
       const isRewritable = contentType.includes('text') || contentType.includes('json') ||
         contentType.includes('mpegurl') || contentType.includes('x-mpegURL') ||
         contentType.includes('xml') || contentType.includes('vnd.apple') ||
