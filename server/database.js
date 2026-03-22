@@ -82,6 +82,14 @@ db.exec(`
   );
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+`);
+try { db.exec("INSERT OR IGNORE INTO settings (key, value) VALUES ('registration_open', 'true')"); } catch {}
+
 try { db.exec('ALTER TABLE users ADD COLUMN credits INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE proxies ADD COLUMN expires_at DATETIME'); } catch {}
 try { db.exec('ALTER TABLE proxies ADD COLUMN country TEXT DEFAULT "auto"'); } catch {}
@@ -142,6 +150,9 @@ const stmts = {
   denyStreamProxy: db.prepare('UPDATE proxies SET stream_proxy = 0 WHERE id = ?'),
   addBandwidth: db.prepare('UPDATE proxies SET bandwidth_used = bandwidth_used + ? WHERE id = ?'),
   getPendingStreamProxies: db.prepare("SELECT p.*, u.username as owner_username FROM proxies p LEFT JOIN users u ON p.user_id = u.id WHERE p.stream_proxy = 1 ORDER BY p.created_at DESC"),
+
+  getSetting: db.prepare('SELECT value FROM settings WHERE key = ?'),
+  setSetting: db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)'),
 
   addServer: db.prepare('INSERT INTO proxy_servers (ip, port, country, label, status) VALUES (?, ?, ?, ?, ?)'),
   getAllServers: db.prepare('SELECT * FROM proxy_servers ORDER BY created_at DESC'),
@@ -206,6 +217,9 @@ module.exports = {
   denyStreamProxy(id) { return stmts.denyStreamProxy.run(id); },
   addBandwidth(bytes, id) { return stmts.addBandwidth.run(bytes, id); },
   getPendingStreamProxies() { return stmts.getPendingStreamProxies.all(); },
+
+  getSetting(key) { const r = stmts.getSetting.get(key); return r ? r.value : null; },
+  setSetting(key, value) { return stmts.setSetting.run(key, value); },
 
   addServer(ip, port, country, label, status) { return stmts.addServer.run(ip, port, country, label || null, status || 'pending'); },
   getAllServers() { return stmts.getAllServers.all(); },

@@ -5,8 +5,18 @@ const { authenticate, generateToken } = require('../auth');
 
 const router = express.Router();
 
+router.get('/registration-status', (req, res) => {
+  const open = db.getSetting('registration_open');
+  res.json({ open: open !== 'false' });
+});
+
 router.post('/register', (req, res) => {
   try {
+    const regOpen = db.getSetting('registration_open');
+    if (regOpen === 'false') {
+      return res.status(403).json({ error: 'Registration is currently closed. Contact admin on Discord.' });
+    }
+
     const { username, email, password } = req.body;
 
     if (!username || !email || !password) {

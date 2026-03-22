@@ -275,6 +275,20 @@ export default function Landing() {
               <p className="text-xs text-slate-600 mt-3">You can also renew existing proxies to extend their duration.</p>
             </div>
           </div>
+
+          <div className="glass rounded-xl p-6 mt-5 max-w-2xl mx-auto border-purple-500/10">
+            <div className="text-center">
+              <p className="text-sm font-semibold text-purple-400 mb-2">Stream Proxy Mode</p>
+              <p className="text-xs text-slate-400 mb-3">
+                Need to proxy video streams or IPTV services? Stream Proxy mode rewrites all URLs in responses to fully hide your backend server. 
+                Custom pricing based on bandwidth requirements.
+              </p>
+              <a href="https://discord.gg/mg6q9mgA" target="_blank" rel="noopener noreferrer"
+                className="btn-secondary text-xs inline-flex items-center gap-2" style={{ padding: '0.5rem 1.25rem' }}>
+                Contact us on Discord for a quote
+              </a>
+            </div>
+          </div>
         </div>
       </section>
 

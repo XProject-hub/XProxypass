@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import {
-  Users, Globe, Activity, Trash2, Shield, ShieldOff,
+  Users, Globe, Activity, Trash2, Shield, ShieldOff, UserPlus,
   Plus, Loader2, ArrowLeft, CreditCard, ScrollText,
   LayoutList, Clock, MapPin, Server, RefreshCw, Wifi, WifiOff, CheckCircle2
 } from 'lucide-react';
@@ -27,6 +27,9 @@ export default function Admin() {
   const [activityLogs, setActivityLogs] = useState([]);
   const [servers, setServers] = useState([]);
   const [streamRequests, setStreamRequests] = useState([]);
+  const [regOpen, setRegOpen] = useState(true);
+  const [createUserModal, setCreateUserModal] = useState(false);
+  const [newUser, setNewUser] = useState({ username: '', email: '', password: '', credits: '0' });
   const [loading, setLoading] = useState(true);
   const [creditModal, setCreditModal] = useState(null);
   const [creditAmount, setCreditAmount] = useState('');
@@ -54,6 +57,8 @@ export default function Admin() {
       if (svRes.ok) setServers((await svRes.json()).servers);
       const srRes = await fetch('/api/admin/stream-requests');
       if (srRes.ok) setStreamRequests((await srRes.json()).requests);
+      const setRes = await fetch('/api/admin/settings');
+      if (setRes.ok) { const d = await setRes.json(); setRegOpen(d.registration_open); }
     } catch (err) {
       console.error('Admin load error:', err);
     } finally {
@@ -128,6 +133,30 @@ export default function Admin() {
     if (res.ok) loadData();
   };
 
+  const toggleRegistration = async () => {
+    const res = await fetch('/api/admin/settings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'registration_open', value: !regOpen }),
+    });
+    if (res.ok) setRegOpen(!regOpen);
+  };
+
+  const createUser = async () => {
+    if (!newUser.username || !newUser.email || !newUser.password) return;
+    const res = await fetch('/api/admin/users', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...newUser, credits: parseInt(newUser.credits) || 0 }),
+    });
+    if (res.ok) {
+      setCreateUserModal(false);
+      setNewUser({ username: '', email: '', password: '', credits: '0' });
+      loadData();
+    } else {
+      const data = await res.json();
+      alert(data.error || 'Failed to create user');
+    }
+  };
+
   const deleteServerItem = async (id) => {
     if (!confirm('Delete this server?')) return;
     const res = await fetch(`/api/admin/servers/${id}`, { method: 'DELETE' });
@@ -168,8 +197,17 @@ export default function Admin() {
             ))}
           </nav>
 
+          {/* Registration Toggle */}
+          <div className="mt-6 px-1">
+            <button onClick={toggleRegistration}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs transition-all ${regOpen ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+              <span>Registration</span>
+              <span className="text-[10px] font-bold uppercase">{regOpen ? 'Open' : 'Closed'}</span>
+            </button>
+          </div>
+
           {/* Stats in sidebar */}
-          <div className="mt-8 space-y-3 px-1">
+          <div className="mt-4 space-y-3 px-1">
             <div className="glass rounded-lg p-3">
               <p className="text-xl font-bold text-slate-100">{stats?.total_users || 0}</p>
               <p className="text-[10px] text-slate-500 uppercase tracking-wider">Users</p>
@@ -249,7 +287,12 @@ export default function Admin() {
           {/* Users Tab */}
           {tab === 'users' && (
             <div>
-              <h2 className="text-xl font-bold text-slate-100 mb-6">All Users</h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-slate-100">All Users</h2>
+                <button onClick={() => setCreateUserModal(true)} className="btn-primary text-xs flex items-center gap-2" style={{ padding: '0.5rem 1rem' }}>
+                  <Plus className="w-3.5 h-3.5" /> Create User
+                </button>
+              </div>
               <div className="glass rounded-xl overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -567,6 +610,44 @@ export default function Admin() {
               <button onClick={() => setCreditModal(null)} className="btn-secondary flex-1 text-sm" style={{ padding: '0.6rem 1rem' }}>Cancel</button>
               <button onClick={addCredits} className="btn-primary flex-1 text-sm flex items-center justify-center gap-2" style={{ padding: '0.6rem 1rem' }}>
                 <Plus className="w-4 h-4" /> Add
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Create User Modal */}
+      {createUserModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={() => setCreateUserModal(false)}>
+          <div className="glass rounded-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-slate-100 mb-1">Create User</h3>
+            <p className="text-xs text-slate-500 mb-5">Create a new user account manually</p>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] text-slate-500 uppercase tracking-wider mb-1 block">Username</label>
+                  <input className="input-field text-xs" placeholder="username" value={newUser.username} onChange={e => setNewUser({...newUser, username: e.target.value})} />
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-500 uppercase tracking-wider mb-1 block">Email</label>
+                  <input className="input-field text-xs" placeholder="email@example.com" value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] text-slate-500 uppercase tracking-wider mb-1 block">Password</label>
+                  <input type="password" className="input-field text-xs" placeholder="min 6 chars" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} />
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-500 uppercase tracking-wider mb-1 block">Initial Credits</label>
+                  <input type="number" className="input-field text-xs" placeholder="0" min="0" value={newUser.credits} onChange={e => setNewUser({...newUser, credits: e.target.value})} />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button onClick={() => setCreateUserModal(false)} className="btn-secondary flex-1 text-xs" style={{ padding: '0.6rem 1rem' }}>Cancel</button>
+              <button onClick={createUser} disabled={!newUser.username || !newUser.email || !newUser.password}
+                className="btn-primary flex-1 text-xs flex items-center justify-center gap-2" style={{ padding: '0.6rem 1rem' }}>
+                <UserPlus className="w-3.5 h-3.5" /> Create
               </button>
             </div>
           </div>

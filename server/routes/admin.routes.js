@@ -102,6 +102,53 @@ router.get('/stats', (req, res) => {
   catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
+// ── Settings ───────────────────────────────────────
+
+router.get('/settings', (req, res) => {
+  try {
+    res.json({
+      registration_open: db.getSetting('registration_open') !== 'false',
+    });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
+router.post('/settings', (req, res) => {
+  try {
+    const { key, value } = req.body;
+    if (!key) return res.status(400).json({ error: 'Key is required' });
+    db.setSetting(key, String(value));
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Settings', 'Update', `${key} = ${value}`);
+    res.json({ message: 'Setting updated' });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
+// ── Admin Create User ──────────────────────────────
+
+const bcrypt = require('bcryptjs');
+
+router.post('/users', (req, res) => {
+  try {
+    const { username, email, password, credits } = req.body;
+    if (!username || !email || !password) {
+      return res.status(400).json({ error: 'Username, email, and password are required' });
+    }
+    if (db.getUserByEmail(email)) return res.status(409).json({ error: 'Email already exists' });
+    if (db.getUserByUsername(username)) return res.status(409).json({ error: 'Username already exists' });
+
+    const hash = bcrypt.hashSync(password, 12);
+    const result = db.createUser(username, email, hash);
+    if (credits && credits > 0) {
+      db.addCredits(credits, result.lastInsertRowid);
+      db.addCreditHistory(result.lastInsertRowid, username, credits, credits, 'admin_added', 'Initial credits from admin');
+    }
+
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'User', 'AdminCreate', `${username} (${email})`);
+
+    const user = db.getUserById(result.lastInsertRowid);
+    res.status(201).json({ user });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
 // ── Stream Proxy Management ────────────────────────
 
 router.get('/stream-requests', (req, res) => {

@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
-import { UserPlus, Mail, Lock, User, ArrowLeft } from 'lucide-react';
+import { UserPlus, Mail, Lock, User, ArrowLeft, XCircle } from 'lucide-react';
 
 export default function Register() {
   const { setUser } = useAuth();
@@ -9,6 +9,11 @@ export default function Register() {
   const [form, setForm] = useState({ username: '', email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [regOpen, setRegOpen] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/auth/registration-status').then(r => r.json()).then(d => setRegOpen(d.open)).catch(() => {});
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -57,6 +62,14 @@ export default function Register() {
 
           <h1 className="text-2xl font-bold text-slate-100 mt-6 mb-1">Create your account</h1>
           <p className="text-sm text-slate-500 mb-8">Start deploying proxies in seconds</p>
+
+          {!regOpen && (
+            <div className="mb-6 px-4 py-4 rounded-lg bg-red-500/10 border border-red-500/20 text-center">
+              <XCircle className="w-6 h-6 text-red-400 mx-auto mb-2" />
+              <p className="text-sm text-red-400 font-medium mb-1">Registration is currently closed</p>
+              <p className="text-xs text-slate-500">Contact us on <a href="https://discord.gg/mg6q9mgA" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">Discord</a> to request an account.</p>
+            </div>
+          )}
 
           {error && (
             <div className="mb-6 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
