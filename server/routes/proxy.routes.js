@@ -110,6 +110,48 @@ router.post('/', (req, res) => {
   }
 });
 
+router.post('/:id/renew', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { validity } = req.body;
+
+    const plan = VALIDITY_OPTIONS.find(v => v.value === validity);
+    if (!plan) return res.status(400).json({ error: 'Invalid validity option' });
+
+    const proxy = db.getProxyById(id);
+    if (!proxy || proxy.user_id !== req.user.id) {
+      return res.status(404).json({ error: 'Proxy not found' });
+    }
+
+    const user = db.getUserById(req.user.id);
+    if (!user.is_admin && user.credits < plan.credits) {
+      return res.status(403).json({ error: `Insufficient credits. ${plan.label} requires ${plan.credits} credit${plan.credits > 1 ? 's' : ''}.` });
+    }
+
+    const currentExpiry = proxy.expires_at ? new Date(proxy.expires_at) : new Date();
+    const baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
+    baseDate.setDate(baseDate.getDate() + plan.days);
+
+    if (!user.is_admin) {
+      for (let i = 0; i < plan.credits; i++) {
+        db.deductCredit(req.user.id);
+      }
+      const after = db.getUserById(req.user.id);
+      db.addCreditHistory(req.user.id, user.username, -plan.credits, after.credits, 'proxy_renewed', `${proxy.subdomain} +${plan.label}`);
+    }
+
+    db.renewProxy(id, baseDate.toISOString());
+    const updated = db.getProxyById(id);
+
+    db.addActivityLog(req.user.id, user.username, req.ip, 'Proxy', 'Renew', `${proxy.subdomain} +${plan.label} (until ${baseDate.toLocaleDateString()})`);
+
+    res.json({ proxy: updated });
+  } catch (err) {
+    console.error('Renew proxy error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.patch('/:id/toggle', (req, res) => {
   try {
     const { id } = req.params;

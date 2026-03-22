@@ -60,6 +60,25 @@ export default function Dashboard() {
     }
   };
 
+  const handleRenew = async (id, validity) => {
+    try {
+      const res = await fetch(`/api/proxies/${id}/renew`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ validity }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setProxies(prev => prev.map(p => p.id === id ? data.proxy : p));
+        loadData();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Renew failed');
+      }
+    } catch (err) {
+      console.error('Renew failed:', err);
+    }
+  };
+
   const handleDelete = async (id) => {
     if (!confirm('Are you sure you want to delete this proxy?')) return;
     try {
@@ -182,6 +201,7 @@ export default function Dashboard() {
                 domain={domain}
                 onToggle={handleToggle}
                 onDelete={handleDelete}
+                onRenew={handleRenew}
               />
             ))}
           </div>

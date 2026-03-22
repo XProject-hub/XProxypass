@@ -1,8 +1,23 @@
-import { Globe, ArrowRight, Pause, Play, Trash2, ExternalLink, MapPin, Clock } from 'lucide-react';
+import { useState } from 'react';
+import { Globe, ArrowRight, Pause, Play, Trash2, ExternalLink, MapPin, Clock, RefreshCw } from 'lucide-react';
 
-export default function ProxyCard({ proxy, domain, onToggle, onDelete }) {
+export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew }) {
   const proxyUrl = `${proxy.subdomain}.${domain}`;
   const isExpired = proxy.expires_at && new Date(proxy.expires_at) < new Date();
+  const [showRenew, setShowRenew] = useState(false);
+  const [renewVal, setRenewVal] = useState('1month');
+  const [renewing, setRenewing] = useState(false);
+
+  const daysLeft = proxy.expires_at
+    ? Math.max(0, Math.ceil((new Date(proxy.expires_at) - new Date()) / (1000 * 60 * 60 * 24)))
+    : null;
+
+  const handleRenew = async () => {
+    setRenewing(true);
+    await onRenew(proxy.id, renewVal);
+    setRenewing(false);
+    setShowRenew(false);
+  };
 
   return (
     <div className="glass rounded-xl p-5 group glass-hover">
@@ -31,6 +46,9 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete }) {
         </div>
 
         <div className="flex items-center gap-1.5">
+          <button onClick={() => setShowRenew(!showRenew)} className="p-2 rounded-lg hover:bg-cyan-500/10 text-slate-500 hover:text-cyan-400 transition-all" title="Renew">
+            <RefreshCw className="w-4 h-4" />
+          </button>
           <button onClick={() => onToggle(proxy.id)} className="p-2 rounded-lg hover:bg-white/[0.05] text-slate-500 hover:text-slate-300 transition-all"
             title={proxy.is_active ? 'Pause' : 'Resume'}>
             {proxy.is_active ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
@@ -50,14 +68,35 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete }) {
       <div className="mt-3 flex items-center justify-between text-xs text-slate-600">
         <span>{proxy.requests_count.toLocaleString()} requests</span>
         <div className="flex items-center gap-3">
-          {proxy.expires_at && (
-            <span className={`flex items-center gap-1 ${isExpired ? 'text-red-400' : ''}`}>
-              <Clock className="w-3 h-3" /> {isExpired ? 'Expired' : new Date(proxy.expires_at).toLocaleDateString()}
+          {daysLeft !== null && (
+            <span className={`flex items-center gap-1 ${isExpired ? 'text-red-400' : daysLeft <= 7 ? 'text-amber-400' : ''}`}>
+              <Clock className="w-3 h-3" />
+              {isExpired ? 'Expired' : `${daysLeft}d left`}
             </span>
           )}
           <span>{new Date(proxy.created_at).toLocaleDateString()}</span>
         </div>
       </div>
+
+      {/* Renew Panel */}
+      {showRenew && (
+        <div className="mt-3 pt-3 border-t border-white/[0.04]">
+          <div className="flex items-center gap-2">
+            <select value={renewVal} onChange={e => setRenewVal(e.target.value)}
+              className="input-field text-xs flex-1" style={{ padding: '0.5rem 0.75rem', background: 'rgba(255,255,255,0.02)' }}>
+              <option value="1month" style={{ background: '#0d0d14' }}>+1 Month (1 credit)</option>
+              <option value="3months" style={{ background: '#0d0d14' }}>+3 Months (2 credits)</option>
+              <option value="6months" style={{ background: '#0d0d14' }}>+6 Months (4 credits)</option>
+              <option value="12months" style={{ background: '#0d0d14' }}>+12 Months (6 credits)</option>
+            </select>
+            <button onClick={handleRenew} disabled={renewing}
+              className="btn-primary text-xs flex items-center gap-1.5" style={{ padding: '0.5rem 1rem' }}>
+              {renewing ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                : <><RefreshCw className="w-3 h-3" /> Renew</>}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

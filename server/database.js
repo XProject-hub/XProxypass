@@ -104,6 +104,7 @@ const stmts = {
   deleteProxyAdmin: db.prepare('DELETE FROM proxies WHERE id = ?'),
   toggleProxy: db.prepare('UPDATE proxies SET is_active = CASE WHEN is_active = 1 THEN 0 ELSE 1 END WHERE id = ? AND user_id = ?'),
   incrementRequests: db.prepare('UPDATE proxies SET requests_count = requests_count + 1 WHERE id = ?'),
+  renewProxy: db.prepare('UPDATE proxies SET expires_at = ?, is_active = 1 WHERE id = ?'),
 
   deductCredit: db.prepare('UPDATE users SET credits = credits - 1 WHERE id = ? AND credits > 0'),
   addCredits: db.prepare('UPDATE users SET credits = credits + ? WHERE id = ?'),
@@ -155,6 +156,7 @@ module.exports = {
   deleteProxyAdmin(id) { return stmts.deleteProxyAdmin.run(id); },
   toggleProxy(id, userId) { return stmts.toggleProxy.run(id, userId); },
   incrementRequests(id) { return stmts.incrementRequests.run(id); },
+  renewProxy(id, expiresAt) { return stmts.renewProxy.run(expiresAt, id); },
 
   deductCredit(userId) { return stmts.deductCredit.run(userId); },
   addCredits(amount, userId) { return stmts.addCredits.run(amount, userId); },

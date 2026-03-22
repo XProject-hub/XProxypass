@@ -233,28 +233,29 @@ export default function Landing() {
               Simple <span className="gradient-text">Pricing</span>
             </h2>
             <p className="text-slate-400 max-w-xl mx-auto">
-              1 credit = 1 proxy for 1 month. Buy credits and deploy as many proxies as you need.
+              Purchase credit packages. 1 credit = 1 proxy for 1 month. Renew anytime to extend.
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {[
-              { period: '1 Month', credits: 1, desc: 'Perfect for trying out the service' },
-              { period: '3 Months', credits: 2, desc: 'Save 33% compared to monthly', popular: false },
-              { period: '6 Months', credits: 4, desc: 'Best value for regular users', popular: true },
-              { period: '12 Months', credits: 6, desc: 'Maximum savings for long term', popular: false },
+              { name: 'Starter', credits: 1, price: '$8', perCredit: '$8.00', desc: 'Try the service with a single proxy' },
+              { name: 'Basic', credits: 5, price: '$35', perCredit: '$7.00', desc: 'Perfect for small projects' },
+              { name: 'Pro', credits: 10, price: '$60', perCredit: '$6.00', desc: 'Best value for regular users', popular: true },
+              { name: 'Business', credits: 25, price: '$125', perCredit: '$5.00', desc: 'Maximum savings for power users' },
             ].map((plan) => (
-              <div key={plan.period} className={`glass rounded-2xl p-6 text-center glass-hover relative ${plan.popular ? 'border-cyan-500/20' : ''}`}>
+              <div key={plan.name} className={`glass rounded-2xl p-6 text-center glass-hover relative ${plan.popular ? 'border-cyan-500/20' : ''}`}>
                 {plan.popular && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-cyan-500 to-blue-500 text-white">
-                    Popular
+                    Best Value
                   </div>
                 )}
-                <h3 className="text-lg font-semibold text-slate-100 mt-2 mb-1">{plan.period}</h3>
-                <div className="mb-3">
-                  <span className="text-3xl font-bold gradient-text">{plan.credits}</span>
-                  <span className="text-sm text-slate-500 ml-1">credit{plan.credits > 1 ? 's' : ''}</span>
+                <h3 className="text-lg font-semibold text-slate-100 mt-2 mb-1">{plan.name}</h3>
+                <div className="mb-1">
+                  <span className="text-3xl font-bold gradient-text">{plan.price}</span>
                 </div>
+                <p className="text-xs text-cyan-400/60 mb-1">{plan.credits} credit{plan.credits > 1 ? 's' : ''}</p>
+                <p className="text-[10px] text-slate-600 mb-4">{plan.perCredit} per credit</p>
                 <p className="text-xs text-slate-500 mb-5">{plan.desc}</p>
                 <Link to="/register" className={`w-full inline-flex items-center justify-center py-2.5 rounded-lg text-sm font-medium transition-all ${plan.popular ? 'btn-primary' : 'btn-secondary'}`}>
                   Get Started
@@ -263,9 +264,17 @@ export default function Landing() {
             ))}
           </div>
 
-          <p className="text-center text-sm text-slate-600 mt-8">
-            Contact admin to purchase credits after registration.
-          </p>
+          <div className="glass rounded-xl p-5 mt-8 max-w-2xl mx-auto">
+            <div className="text-center">
+              <p className="text-sm text-slate-300 mb-2">How credits work</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs text-slate-500">
+                <div>1 credit = 1 proxy / 1 month</div>
+                <div>2 credits = 1 proxy / 3 months</div>
+                <div>6 credits = 1 proxy / 12 months</div>
+              </div>
+              <p className="text-xs text-slate-600 mt-3">You can also renew existing proxies to extend their duration.</p>
+            </div>
+          </div>
         </div>
       </section>
 
