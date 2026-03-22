@@ -3,12 +3,13 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../App';
 import Navbar from '../components/Navbar';
 import ProxyCard from '../components/ProxyCard';
-import { Plus, Server, Activity, Globe, Loader2 } from 'lucide-react';
+import { Plus, Server, Activity, Globe, Loader2, CreditCard, ShieldCheck } from 'lucide-react';
 
 export default function Dashboard() {
   const { user } = useAuth();
   const [proxies, setProxies] = useState([]);
   const [stats, setStats] = useState(null);
+  const [credits, setCredits] = useState(0);
   const [loading, setLoading] = useState(true);
   const [domain, setDomain] = useState('');
 
@@ -18,23 +19,26 @@ export default function Dashboard() {
 
   const loadData = async () => {
     try {
-      const [proxiesRes, statsRes] = await Promise.all([
+      const [proxiesRes, statsRes, meRes] = await Promise.all([
         fetch('/api/proxies'),
         fetch('/api/stats'),
+        fetch('/api/auth/me'),
       ]);
 
       if (proxiesRes.ok) {
         const data = await proxiesRes.json();
         setProxies(data.proxies);
-        if (data.proxies.length > 0) {
-          const currentHost = window.location.hostname;
-          setDomain(currentHost);
-        }
+        setDomain(window.location.hostname);
       }
 
       if (statsRes.ok) {
         const data = await statsRes.json();
         setStats(data.stats);
+      }
+
+      if (meRes.ok) {
+        const data = await meRes.json();
+        setCredits(data.user.credits || 0);
       }
     } catch (err) {
       console.error('Failed to load data:', err);
@@ -62,9 +66,7 @@ export default function Dashboard() {
       const res = await fetch(`/api/proxies/${id}`, { method: 'DELETE' });
       if (res.ok) {
         setProxies((prev) => prev.filter((p) => p.id !== id));
-        if (stats) {
-          setStats({ ...stats, total_proxies: stats.total_proxies - 1 });
-        }
+        if (stats) setStats({ ...stats, total_proxies: stats.total_proxies - 1 });
       }
     } catch (err) {
       console.error('Delete failed:', err);
@@ -91,13 +93,32 @@ export default function Dashboard() {
             </h1>
             <p className="text-sm text-slate-500 mt-1">Manage your proxy services</p>
           </div>
-          <Link to="/dashboard/add" className="btn-primary flex items-center gap-2 text-sm">
-            <Plus className="w-4 h-4" /> Add Proxy
-          </Link>
+          <div className="flex items-center gap-3">
+            {user?.is_admin === 1 && (
+              <Link to="/admin" className="btn-secondary flex items-center gap-2 text-sm" style={{ padding: '0.6rem 1rem' }}>
+                <ShieldCheck className="w-4 h-4" /> Admin Panel
+              </Link>
+            )}
+            <Link to="/dashboard/add" className="btn-primary flex items-center gap-2 text-sm">
+              <Plus className="w-4 h-4" /> Add Proxy
+            </Link>
+          </div>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+          <div className="glass rounded-xl p-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/10 flex items-center justify-center">
+                <CreditCard className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-slate-100">{credits}</p>
+                <p className="text-xs text-slate-500">Credits</p>
+              </div>
+            </div>
+          </div>
+
           <div className="glass rounded-xl p-5">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/10 flex items-center justify-center">

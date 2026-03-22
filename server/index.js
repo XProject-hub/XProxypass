@@ -10,6 +10,7 @@ const db = require('./database');
 const authRoutes = require('./routes/auth.routes');
 const proxyRoutes = require('./routes/proxy.routes');
 const statsRoutes = require('./routes/stats.routes');
+const adminRoutes = require('./routes/admin.routes');
 
 const app = express();
 const proxy = httpProxy.createProxyServer({ xfwd: true });
@@ -28,7 +29,7 @@ p{color:#94a3b8;font-size:1.1rem;margin-top:1rem}
 .s{margin-top:3rem;font-size:.85rem;opacity:.4}
 </style></head>
 <body><div class="c"><h1>502</h1><p>The backend server is currently unavailable.</p>
-<p class="s">Powered by XProxypass</p></div></body></html>`;
+<p class="s">Powered by ProxyXPass</p></div></body></html>`;
 
 const NOT_FOUND_PAGE = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -44,7 +45,7 @@ p{color:#94a3b8;font-size:1.1rem;margin-top:1rem}
 .s{margin-top:3rem;font-size:.85rem;opacity:.4}
 </style></head>
 <body><div class="c"><h1>404</h1><p>This proxy service does not exist or has been disabled.</p>
-<p class="s">Powered by XProxypass</p></div></body></html>`;
+<p class="s">Powered by ProxyXPass</p></div></body></html>`;
 
 proxy.on('error', (err, req, res) => {
   if (res.writeHead) {
@@ -79,7 +80,7 @@ app.use((req, res, next) => {
 
   if (subdomain) {
     const record = db.getProxyBySubdomain(subdomain);
-    if (!record || !record.is_active) {
+    if (!record || !record.is_active || (record.expires_at && new Date(record.expires_at) < new Date())) {
       res.writeHead(404, { 'Content-Type': 'text/html' });
       return res.end(NOT_FOUND_PAGE);
     }
@@ -97,6 +98,7 @@ app.use((req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/proxies', proxyRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/admin', adminRoutes);
 
 const clientDist = path.join(__dirname, '..', 'client', 'dist');
 app.use(express.static(clientDist));
@@ -112,7 +114,7 @@ server.on('upgrade', (req, socket, head) => {
 
   if (subdomain) {
     const record = db.getProxyBySubdomain(subdomain);
-    if (record && record.is_active) {
+    if (record && record.is_active && !(record.expires_at && new Date(record.expires_at) < new Date())) {
       proxy.ws(req, socket, head, {
         target: record.target_url,
         changeOrigin: true,
@@ -124,7 +126,7 @@ server.on('upgrade', (req, socket, head) => {
 });
 
 server.listen(config.port, () => {
-  console.log(`[XProxypass] Server running on port ${config.port}`);
-  console.log(`[XProxypass] Domain: ${config.domain}`);
-  console.log(`[XProxypass] Environment: ${config.nodeEnv}`);
+  console.log(`[ProxyXPass] Server running on port ${config.port}`);
+  console.log(`[ProxyXPass] Domain: ${config.domain}`);
+  console.log(`[ProxyXPass] Environment: ${config.nodeEnv}`);
 });

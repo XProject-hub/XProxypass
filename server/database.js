@@ -19,6 +19,7 @@ db.exec(`
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
     is_admin INTEGER DEFAULT 0,
+    credits INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -29,6 +30,7 @@ db.exec(`
     target_url TEXT NOT NULL,
     is_active INTEGER DEFAULT 1,
     requests_count INTEGER DEFAULT 0,
+    expires_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
@@ -45,16 +47,20 @@ db.exec(`
   );
 `);
 
+// Migrate existing tables if credits/expires_at columns are missing
+try { db.exec('ALTER TABLE users ADD COLUMN credits INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE proxies ADD COLUMN expires_at DATETIME'); } catch {}
+
 const stmts = {
   createUser: db.prepare(
     'INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)'
   ),
   getUserByEmail: db.prepare('SELECT * FROM users WHERE email = ?'),
   getUserByUsername: db.prepare('SELECT * FROM users WHERE username = ?'),
-  getUserById: db.prepare('SELECT id, username, email, is_admin, created_at FROM users WHERE id = ?'),
+  getUserById: db.prepare('SELECT id, username, email, is_admin, credits, created_at FROM users WHERE id = ?'),
 
   createProxy: db.prepare(
-    'INSERT INTO proxies (user_id, subdomain, target_url) VALUES (?, ?, ?)'
+    'INSERT INTO proxies (user_id, subdomain, target_url, expires_at) VALUES (?, ?, ?, ?)'
   ),
   getProxiesByUser: db.prepare(
     'SELECT * FROM proxies WHERE user_id = ? ORDER BY created_at DESC'
@@ -62,12 +68,34 @@ const stmts = {
   getProxyBySubdomain: db.prepare('SELECT * FROM proxies WHERE subdomain = ?'),
   getProxyById: db.prepare('SELECT * FROM proxies WHERE id = ?'),
   deleteProxy: db.prepare('DELETE FROM proxies WHERE id = ? AND user_id = ?'),
+  deleteProxyAdmin: db.prepare('DELETE FROM proxies WHERE id = ?'),
   toggleProxy: db.prepare(
     'UPDATE proxies SET is_active = CASE WHEN is_active = 1 THEN 0 ELSE 1 END WHERE id = ? AND user_id = ?'
   ),
   incrementRequests: db.prepare(
     'UPDATE proxies SET requests_count = requests_count + 1 WHERE id = ?'
   ),
+
+  deductCredit: db.prepare(
+    'UPDATE users SET credits = credits - 1 WHERE id = ? AND credits > 0'
+  ),
+  addCredits: db.prepare(
+    'UPDATE users SET credits = credits + ? WHERE id = ?'
+  ),
+  setAdmin: db.prepare(
+    'UPDATE users SET is_admin = ? WHERE id = ?'
+  ),
+
+  getAllUsers: db.prepare(
+    'SELECT id, username, email, is_admin, credits, created_at FROM users ORDER BY created_at DESC'
+  ),
+  getAllProxies: db.prepare(`
+    SELECT p.*, u.username as owner_username
+    FROM proxies p
+    LEFT JOIN users u ON p.user_id = u.id
+    ORDER BY p.created_at DESC
+  `),
+  deleteUserAdmin: db.prepare('DELETE FROM users WHERE id = ?'),
 
   getUserStats: db.prepare(`
     SELECT
@@ -98,8 +126,8 @@ module.exports = {
   getUserById(id) {
     return stmts.getUserById.get(id);
   },
-  createProxy(userId, subdomain, targetUrl) {
-    return stmts.createProxy.run(userId, subdomain, targetUrl);
+  createProxy(userId, subdomain, targetUrl, expiresAt) {
+    return stmts.createProxy.run(userId, subdomain, targetUrl, expiresAt || null);
   },
   getProxiesByUser(userId) {
     return stmts.getProxiesByUser.all(userId);
@@ -113,11 +141,32 @@ module.exports = {
   deleteProxy(id, userId) {
     return stmts.deleteProxy.run(id, userId);
   },
+  deleteProxyAdmin(id) {
+    return stmts.deleteProxyAdmin.run(id);
+  },
   toggleProxy(id, userId) {
     return stmts.toggleProxy.run(id, userId);
   },
   incrementRequests(id) {
     return stmts.incrementRequests.run(id);
+  },
+  deductCredit(userId) {
+    return stmts.deductCredit.run(userId);
+  },
+  addCredits(amount, userId) {
+    return stmts.addCredits.run(amount, userId);
+  },
+  setAdmin(isAdmin, userId) {
+    return stmts.setAdmin.run(isAdmin, userId);
+  },
+  getAllUsers() {
+    return stmts.getAllUsers.all();
+  },
+  getAllProxies() {
+    return stmts.getAllProxies.all();
+  },
+  deleteUserAdmin(id) {
+    return stmts.deleteUserAdmin.run(id);
   },
   getUserStats(userId) {
     return stmts.getUserStats.get(userId);

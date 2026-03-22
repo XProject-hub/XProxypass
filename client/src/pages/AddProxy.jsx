@@ -1,16 +1,24 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { Globe, ArrowRight, ArrowLeft, Server, CheckCircle2 } from 'lucide-react';
+import { Globe, ArrowRight, ArrowLeft, Server, CheckCircle2, Calendar, CreditCard } from 'lucide-react';
 
 export default function AddProxy() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ subdomain: '', target_url: '' });
+  const [form, setForm] = useState({ subdomain: '', target_url: '', expires_at: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [credits, setCredits] = useState(0);
 
   const domain = window.location.hostname;
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(r => r.json())
+      .then(data => setCredits(data.user?.credits || 0))
+      .catch(() => {});
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -18,10 +26,16 @@ export default function AddProxy() {
     setLoading(true);
 
     try {
+      const body = {
+        subdomain: form.subdomain,
+        target_url: form.target_url,
+      };
+      if (form.expires_at) body.expires_at = form.expires_at;
+
       const res = await fetch('/api/proxies', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(body),
       });
 
       const data = await res.json();
@@ -52,6 +66,20 @@ export default function AddProxy() {
         <h1 className="text-2xl font-bold text-slate-100 mb-2">Deploy New Proxy</h1>
         <p className="text-sm text-slate-500 mb-8">Create a new reverse proxy service for your website</p>
 
+        {/* Credit Info */}
+        <div className="glass rounded-xl p-4 mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/10 flex items-center justify-center">
+              <CreditCard className="w-4 h-4 text-amber-400" />
+            </div>
+            <div>
+              <p className="text-sm text-slate-300">Available Credits</p>
+              <p className="text-xs text-slate-500">1 credit = 1 proxy</p>
+            </div>
+          </div>
+          <span className="text-2xl font-bold text-amber-400">{credits}</span>
+        </div>
+
         {success ? (
           <div className="glass rounded-2xl p-12 text-center">
             <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-5">
@@ -76,7 +104,8 @@ export default function AddProxy() {
                     <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
                     <input
                       type="text"
-                      className="input-field pl-10 rounded-r-none border-r-0"
+                      className="input-field pl-10"
+                      style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRight: 'none' }}
                       placeholder="my-site"
                       value={form.subdomain}
                       onChange={(e) => setForm({ ...form, subdomain: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
@@ -84,7 +113,7 @@ export default function AddProxy() {
                       maxLength={32}
                     />
                   </div>
-                  <div className="flex items-center px-4 glass rounded-r-lg border-l-0 text-sm text-slate-500 font-mono whitespace-nowrap">
+                  <div className="flex items-center px-4 glass text-sm text-slate-500 font-mono whitespace-nowrap" style={{ borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderLeft: 'none' }}>
                     .{domain}
                   </div>
                 </div>
@@ -107,6 +136,21 @@ export default function AddProxy() {
                 <p className="text-xs text-slate-600 mt-2">The URL where traffic will be forwarded to</p>
               </div>
 
+              <div>
+                <label className="block text-sm text-slate-400 mb-2">Expiration Date <span className="text-slate-600">(optional)</span></label>
+                <div className="relative">
+                  <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
+                  <input
+                    type="date"
+                    className="input-field pl-10"
+                    value={form.expires_at}
+                    onChange={(e) => setForm({ ...form, expires_at: e.target.value })}
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+                <p className="text-xs text-slate-600 mt-2">Leave empty for no expiration</p>
+              </div>
+
               {/* Preview */}
               {form.subdomain && form.target_url && (
                 <div className="rounded-xl bg-white/[0.02] border border-white/[0.04] p-4">
@@ -116,6 +160,9 @@ export default function AddProxy() {
                     <ArrowRight className="w-4 h-4 text-slate-600 flex-shrink-0" />
                     <span className="font-mono text-slate-400 truncate">{form.target_url}</span>
                   </div>
+                  {form.expires_at && (
+                    <p className="text-xs text-slate-600 mt-2">Expires: {new Date(form.expires_at).toLocaleDateString()}</p>
+                  )}
                 </div>
               )}
 
@@ -128,7 +175,7 @@ export default function AddProxy() {
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
                   <>
-                    <Globe className="w-4 h-4" /> Deploy Proxy
+                    <Globe className="w-4 h-4" /> Deploy Proxy (1 Credit)
                   </>
                 )}
               </button>

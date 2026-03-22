@@ -24,10 +24,17 @@ router.get('/', (req, res) => {
 
 router.post('/', (req, res) => {
   try {
-    const { subdomain, target_url } = req.body;
+    const { subdomain, target_url, expires_at } = req.body;
 
     if (!subdomain || !target_url) {
       return res.status(400).json({ error: 'Subdomain and target URL are required' });
+    }
+
+    const user = db.getUserById(req.user.id);
+    if (!user) return res.status(401).json({ error: 'User not found' });
+
+    if (user.credits < 1 && !user.is_admin) {
+      return res.status(403).json({ error: 'Insufficient credits. You need at least 1 credit to create a proxy.' });
     }
 
     const sub = subdomain.toLowerCase().trim();
@@ -54,7 +61,20 @@ router.post('/', (req, res) => {
       return res.status(400).json({ error: 'Invalid target URL' });
     }
 
-    const result = db.createProxy(req.user.id, sub, target_url);
+    let expiry = null;
+    if (expires_at) {
+      const d = new Date(expires_at);
+      if (isNaN(d.getTime()) || d <= new Date()) {
+        return res.status(400).json({ error: 'Expiration date must be in the future' });
+      }
+      expiry = d.toISOString();
+    }
+
+    if (!user.is_admin) {
+      db.deductCredit(req.user.id);
+    }
+
+    const result = db.createProxy(req.user.id, sub, target_url, expiry);
     const proxy = db.getProxyById(result.lastInsertRowid);
 
     res.status(201).json({ proxy });
