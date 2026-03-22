@@ -65,20 +65,29 @@ proxy.on('error', (err, req, res) => {
 
 function getSubdomain(hostname) {
   if (!hostname) return null;
+  hostname = hostname.replace(/^www\./, '');
+
+  function extractSub(host, baseDomain) {
+    if (host === baseDomain) return null;
+    if (host.endsWith('.' + baseDomain)) {
+      let sub = host.slice(0, -(baseDomain.length + 1));
+      sub = sub.replace(/^www\./, '');
+      return { subdomain: sub, domain: baseDomain };
+    }
+    return null;
+  }
 
   const main = config.domain;
+  const mainResult = extractSub(hostname, main);
+  if (mainResult) return mainResult;
   if (hostname === main) return null;
-  if (hostname.endsWith('.' + main)) {
-    return { subdomain: hostname.slice(0, -(main.length + 1)), domain: main };
-  }
 
   try {
     const domains = db.getActiveDomains();
     for (const d of domains) {
+      const r = extractSub(hostname, d.domain);
+      if (r) return r;
       if (hostname === d.domain) return null;
-      if (hostname.endsWith('.' + d.domain)) {
-        return { subdomain: hostname.slice(0, -(d.domain.length + 1)), domain: d.domain };
-      }
     }
   } catch {}
 
@@ -206,9 +215,12 @@ app.use((req, res, next) => {
 
       function rewriteUrl(str) {
         if (!str || !targetHost) return str;
+        str = str.replace(new RegExp(`https?://www\\.${escHost}`, 'g'), `https://${proxyHost}`);
         str = str.replace(new RegExp(escOrigin, 'g'), `https://${proxyHost}`);
         str = str.replace(new RegExp(`http://${escHost}`, 'g'), `https://${proxyHost}`);
+        str = str.replace(new RegExp(`www\\.${escHost}`, 'g'), proxyHost);
         str = str.replace(new RegExp(escHost, 'g'), proxyHost);
+        str = str.replace(new RegExp(`www\\.${proxyHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g'), proxyHost);
         return str;
       }
 
