@@ -7,10 +7,10 @@ const config = require('../config');
 const router = express.Router();
 
 const CREDIT_PACKAGES = [
-  { id: 'starter', name: 'Starter', credits: 1, price: '8.00', currency: 'USD' },
-  { id: 'basic', name: 'Basic', credits: 5, price: '35.00', currency: 'USD' },
-  { id: 'pro', name: 'Pro', credits: 10, price: '60.00', currency: 'USD' },
-  { id: 'business', name: 'Business', credits: 25, price: '125.00', currency: 'USD' },
+  { id: 'starter', name: 'Starter', credits: 1, price: '7.00', currency: 'EUR' },
+  { id: 'basic', name: 'Basic', credits: 5, price: '30.00', currency: 'EUR' },
+  { id: 'pro', name: 'Pro', credits: 10, price: '50.00', currency: 'EUR' },
+  { id: 'business', name: 'Business', credits: 25, price: '100.00', currency: 'EUR' },
 ];
 
 function paypalRequest(method, path, body) {

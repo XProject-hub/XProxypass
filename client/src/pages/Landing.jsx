@@ -239,10 +239,10 @@ export default function Landing() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {[
-              { name: 'Starter', credits: 1, price: '$8', perCredit: '$8.00', desc: 'Try the service with a single proxy' },
-              { name: 'Basic', credits: 5, price: '$35', perCredit: '$7.00', desc: 'Perfect for small projects' },
-              { name: 'Pro', credits: 10, price: '$60', perCredit: '$6.00', desc: 'Best value for regular users', popular: true },
-              { name: 'Business', credits: 25, price: '$125', perCredit: '$5.00', desc: 'Maximum savings for power users' },
+              { name: 'Starter', credits: 1, price: '7', perCredit: '7.00', desc: 'Try the service with a single proxy' },
+              { name: 'Basic', credits: 5, price: '30', perCredit: '6.00', desc: 'Perfect for small projects' },
+              { name: 'Pro', credits: 10, price: '50', perCredit: '5.00', desc: 'Best value for regular users', popular: true },
+              { name: 'Business', credits: 25, price: '100', perCredit: '4.00', desc: 'Maximum savings for power users' },
             ].map((plan) => (
               <div key={plan.name} className={`glass rounded-2xl p-6 text-center glass-hover relative ${plan.popular ? 'border-cyan-500/20' : ''}`}>
                 {plan.popular && (
@@ -252,10 +252,10 @@ export default function Landing() {
                 )}
                 <h3 className="text-lg font-semibold text-slate-100 mt-2 mb-1">{plan.name}</h3>
                 <div className="mb-1">
-                  <span className="text-3xl font-bold gradient-text">{plan.price}</span>
+                  <span className="text-3xl font-bold gradient-text">&euro;{plan.price}</span>
                 </div>
                 <p className="text-xs text-cyan-400/60 mb-1">{plan.credits} credit{plan.credits > 1 ? 's' : ''}</p>
-                <p className="text-[10px] text-slate-600 mb-4">{plan.perCredit} per credit</p>
+                <p className="text-[10px] text-slate-600 mb-4">&euro;{plan.perCredit} per credit</p>
                 <p className="text-xs text-slate-500 mb-5">{plan.desc}</p>
                 <Link to="/register" className={`w-full inline-flex items-center justify-center py-2.5 rounded-lg text-sm font-medium transition-all ${plan.popular ? 'btn-primary' : 'btn-secondary'}`}>
                   Get Started

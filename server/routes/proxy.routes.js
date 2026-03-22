@@ -10,7 +10,7 @@ const RESERVED = new Set([
   'login', 'register', 'app', 'dev', 'staging', 'test',
 ]);
 
-const VALID_COUNTRIES = new Set(db.COUNTRIES.map(c => c.code));
+const proxyPool = require('../proxy-pool');
 
 const VALIDITY_OPTIONS = [
   { value: '1month', label: '1 Month', days: 30, credits: 1 },
@@ -22,7 +22,12 @@ const VALIDITY_OPTIONS = [
 router.use(authenticate);
 
 router.get('/countries', (req, res) => {
-  res.json({ countries: db.COUNTRIES });
+  const poolCountries = proxyPool.getAvailableCountries();
+  const countries = [
+    { code: 'auto', name: 'Auto (Direct)', total: 0, verified: 0 },
+    ...poolCountries.map(c => ({ code: c.code, name: c.code, total: c.total, verified: c.verified })),
+  ];
+  res.json({ countries });
 });
 
 router.get('/validity-options', (req, res) => {
@@ -85,7 +90,7 @@ router.post('/', (req, res) => {
       return res.status(400).json({ error: 'Invalid target URL' });
     }
 
-    const selectedCountry = (country && VALID_COUNTRIES.has(country)) ? country : 'auto';
+    const selectedCountry = country || 'auto';
 
     const expiry = new Date();
     expiry.setDate(expiry.getDate() + plan.days);

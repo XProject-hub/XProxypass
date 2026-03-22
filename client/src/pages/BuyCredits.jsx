@@ -135,10 +135,10 @@ export default function BuyCredits() {
                 )}
                 <h3 className="text-lg font-semibold text-slate-100 mt-2 mb-1">{pkg.name}</h3>
                 <div className="mb-1">
-                  <span className="text-3xl font-bold gradient-text">${pkg.price}</span>
+                  <span className="text-3xl font-bold gradient-text">&euro;{pkg.price}</span>
                 </div>
                 <p className="text-sm text-cyan-400/60 mb-1">{pkg.credits} credit{pkg.credits > 1 ? 's' : ''}</p>
-                <p className="text-[10px] text-slate-600 mb-5">${(parseFloat(pkg.price) / pkg.credits).toFixed(2)} per credit</p>
+                <p className="text-[10px] text-slate-600 mb-5">&euro;{(parseFloat(pkg.price) / pkg.credits).toFixed(2)} per credit</p>
                 <button
                   onClick={() => handleBuy(pkg)}
                   disabled={processing !== null}
