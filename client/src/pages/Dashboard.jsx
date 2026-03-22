@@ -79,6 +79,24 @@ export default function Dashboard() {
     }
   };
 
+  const handleEdit = async (id, subdomain, targetUrl) => {
+    try {
+      const res = await fetch(`/api/proxies/${id}/edit`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subdomain, target_url: targetUrl }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setProxies(prev => prev.map(p => p.id === id ? data.proxy : p));
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Edit failed');
+      }
+    } catch (err) {
+      console.error('Edit failed:', err);
+    }
+  };
+
   const handleRequestStream = async (id) => {
     if (!confirm('Request Stream Proxy mode? This requires admin approval and is for high-bandwidth use cases like IPTV streaming.')) return;
     try {
@@ -221,6 +239,7 @@ export default function Dashboard() {
                 onDelete={handleDelete}
                 onRenew={handleRenew}
                 onRequestStream={handleRequestStream}
+                onEdit={handleEdit}
               />
             ))}
           </div>

@@ -219,6 +219,44 @@ router.patch('/:id/toggle', (req, res) => {
   }
 });
 
+router.patch('/:id/edit', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { subdomain, target_url } = req.body;
+
+    const proxy = db.getProxyById(id);
+    if (!proxy || proxy.user_id !== req.user.id) {
+      return res.status(404).json({ error: 'Proxy not found' });
+    }
+
+    if (subdomain && subdomain !== proxy.subdomain) {
+      const sub = subdomain.toLowerCase().trim();
+      if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(sub)) {
+        return res.status(400).json({ error: 'Invalid subdomain format' });
+      }
+      if (db.subdomainExists(sub)) {
+        return res.status(409).json({ error: 'Subdomain already taken' });
+      }
+      db.updateProxySubdomain(id, req.user.id, sub);
+      db.addActivityLog(req.user.id, req.user.username, req.ip, 'Proxy', 'Edit', `${proxy.subdomain} -> ${sub}`);
+    }
+
+    if (target_url && target_url !== proxy.target_url) {
+      try { new URL(target_url); } catch {
+        return res.status(400).json({ error: 'Invalid target URL' });
+      }
+      db.updateProxyTarget(id, req.user.id, target_url);
+      db.addActivityLog(req.user.id, req.user.username, req.ip, 'Proxy', 'EditTarget', `${proxy.subdomain}: ${proxy.target_url} -> ${target_url}`);
+    }
+
+    const updated = db.getProxyById(id);
+    res.json({ proxy: updated });
+  } catch (err) {
+    console.error('Edit proxy error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.post('/:id/request-stream', (req, res) => {
   try {
     const { id } = req.params;
