@@ -228,6 +228,11 @@ app.use((req, res, next) => {
         newHeaders.refresh = rewriteUrl(newHeaders.refresh);
       }
 
+      delete newHeaders['content-security-policy'];
+      delete newHeaders['content-security-policy-report-only'];
+      delete newHeaders['x-frame-options'];
+      delete newHeaders['strict-transport-security'];
+
       const isRewritable = contentType.includes('text') || contentType.includes('json') ||
         contentType.includes('mpegurl') || contentType.includes('x-mpegURL') ||
         contentType.includes('xml') || contentType.includes('vnd.apple') ||
@@ -239,6 +244,14 @@ app.use((req, res, next) => {
         proxyRes.on('end', () => {
           let body = Buffer.concat(chunks).toString('utf8');
           body = rewriteUrl(body);
+
+          body = body.replace(/<base\s+href=["'][^"']*["']/gi, `<base href="https://${proxyHost}/"`);
+
+          body = body.replace(
+            /(<head[^>]*>)/i,
+            `$1<script>Object.defineProperty(document,'domain',{get:function(){return '${proxyHost}';}});` +
+            `if(window.location.hostname!=='${proxyHost}'){window.location.hostname='${proxyHost}';}</script>`
+          );
 
           delete newHeaders['content-length'];
           delete newHeaders['content-encoding'];
