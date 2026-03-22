@@ -6,6 +6,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import AddProxy from './pages/AddProxy';
 import Admin from './pages/Admin';
+import BuyCredits from './pages/BuyCredits';
 
 const AuthContext = createContext(null);
 
@@ -65,6 +66,7 @@ export default function App() {
           <Route path="/register" element={<GuestRoute><Register /></GuestRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/dashboard/add" element={<ProtectedRoute><AddProxy /></ProtectedRoute>} />
+          <Route path="/dashboard/buy" element={<ProtectedRoute><BuyCredits /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

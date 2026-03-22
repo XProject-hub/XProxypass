@@ -6,4 +6,7 @@ module.exports = {
   jwtSecret: process.env.JWT_SECRET || 'dev-secret-change-in-production',
   jwtExpiry: process.env.JWT_EXPIRY || '7d',
   nodeEnv: process.env.NODE_ENV || 'development',
+  paypalClientId: process.env.PAYPAL_CLIENT_ID || '',
+  paypalSecret: process.env.PAYPAL_SECRET || '',
+  paypalSandbox: process.env.PAYPAL_SANDBOX === 'true',
 };

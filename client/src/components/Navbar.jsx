@@ -47,6 +47,9 @@ export default function Navbar() {
                 <Link to="/dashboard/add" className={`px-4 py-2 text-sm rounded-lg transition-colors ${location.pathname === '/dashboard/add' ? 'text-cyan-400 bg-white/[0.05]' : 'text-slate-400 hover:text-slate-100 hover:bg-white/[0.03]'}`}>
                   Add Proxy
                 </Link>
+                <Link to="/dashboard/buy" className={`px-4 py-2 text-sm rounded-lg transition-colors ${location.pathname === '/dashboard/buy' ? 'text-cyan-400 bg-white/[0.05]' : 'text-slate-400 hover:text-slate-100 hover:bg-white/[0.03]'}`}>
+                  Buy Credits
+                </Link>
               </>
             )}
           </div>

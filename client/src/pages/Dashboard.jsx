@@ -118,6 +118,9 @@ export default function Dashboard() {
                 <ShieldCheck className="w-4 h-4" /> Admin Panel
               </Link>
             )}
+            <Link to="/dashboard/buy" className="btn-secondary flex items-center gap-2 text-sm" style={{ padding: '0.6rem 1rem' }}>
+              <CreditCard className="w-4 h-4" /> Buy Credits
+            </Link>
             <Link to="/dashboard/add" className="btn-primary flex items-center gap-2 text-sm">
               <Plus className="w-4 h-4" /> Add Proxy
             </Link>
