@@ -22,6 +22,7 @@ const paypalRoutes = require('./routes/paypal.routes');
 
 const app = express();
 const proxy = httpProxy.createProxyServer({ xfwd: true });
+proxy.setMaxListeners(0);
 
 proxyPool.init();
 
@@ -284,10 +285,10 @@ app.use((req, res, next) => {
       const newHeaders = { ...proxyRes.headers };
 
       if (newHeaders.location) {
-        newHeaders.location = rewriteAllExternalUrls(newHeaders.location);
+        newHeaders.location = rewriteUrl(newHeaders.location);
       }
       if (newHeaders['content-location']) {
-        newHeaders['content-location'] = rewriteAllExternalUrls(newHeaders['content-location']);
+        newHeaders['content-location'] = rewriteUrl(newHeaders['content-location']);
       }
       if (newHeaders['set-cookie']) {
         newHeaders['set-cookie'] = (Array.isArray(newHeaders['set-cookie']) ? newHeaders['set-cookie'] : [newHeaders['set-cookie']])
