@@ -229,24 +229,26 @@ router.patch('/:id/edit', (req, res) => {
       return res.status(404).json({ error: 'Proxy not found' });
     }
 
-    if (subdomain && subdomain !== proxy.subdomain) {
+    if (subdomain) {
       const sub = subdomain.toLowerCase().trim();
-      if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(sub)) {
-        return res.status(400).json({ error: 'Invalid subdomain format' });
+      if (sub !== proxy.subdomain) {
+        if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(sub)) {
+          return res.status(400).json({ error: 'Invalid subdomain format' });
+        }
+        if (db.subdomainExists(sub)) {
+          return res.status(409).json({ error: 'Subdomain already taken' });
+        }
+        db.updateProxySubdomain(id, req.user.id, sub);
+        db.addActivityLog(req.user.id, req.user.username, req.ip, 'Proxy', 'EditSubdomain', `${proxy.subdomain} -> ${sub}`);
       }
-      if (db.subdomainExists(sub)) {
-        return res.status(409).json({ error: 'Subdomain already taken' });
-      }
-      db.updateProxySubdomain(id, req.user.id, sub);
-      db.addActivityLog(req.user.id, req.user.username, req.ip, 'Proxy', 'Edit', `${proxy.subdomain} -> ${sub}`);
     }
 
-    if (target_url && target_url !== proxy.target_url) {
+    if (target_url) {
       try { new URL(target_url); } catch {
         return res.status(400).json({ error: 'Invalid target URL' });
       }
       db.updateProxyTarget(id, req.user.id, target_url);
-      db.addActivityLog(req.user.id, req.user.username, req.ip, 'Proxy', 'EditTarget', `${proxy.subdomain}: ${proxy.target_url} -> ${target_url}`);
+      db.addActivityLog(req.user.id, req.user.username, req.ip, 'Proxy', 'EditTarget', `${proxy.subdomain}: -> ${target_url}`);
     }
 
     const updated = db.getProxyById(id);
