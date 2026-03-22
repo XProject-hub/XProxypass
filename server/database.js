@@ -163,6 +163,7 @@ const stmts = {
   getPendingStreamProxies: db.prepare("SELECT p.*, u.username as owner_username FROM proxies p LEFT JOIN users u ON p.user_id = u.id WHERE p.stream_proxy >= 1 ORDER BY p.stream_proxy ASC, p.created_at DESC"),
   updateProxySubdomain: db.prepare('UPDATE proxies SET subdomain = ? WHERE id = ? AND user_id = ?'),
   updateProxyTarget: db.prepare('UPDATE proxies SET target_url = ? WHERE id = ? AND user_id = ?'),
+  updateProxyCountry: db.prepare('UPDATE proxies SET country = ? WHERE id = ? AND user_id = ?'),
 
   getSetting: db.prepare('SELECT value FROM settings WHERE key = ?'),
   setSetting: db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)'),
@@ -236,6 +237,7 @@ module.exports = {
   requestStreamProxy(id, userId) { return stmts.requestStreamProxy.run(id, userId); },
   updateProxySubdomain(id, userId, subdomain) { return stmts.updateProxySubdomain.run(subdomain, id, userId); },
   updateProxyTarget(id, userId, targetUrl) { return stmts.updateProxyTarget.run(targetUrl, id, userId); },
+  updateProxyCountry(id, userId, country) { return stmts.updateProxyCountry.run(country, id, userId); },
   approveStreamProxy(id) { return stmts.approveStreamProxy.run(id); },
   denyStreamProxy(id) { return stmts.denyStreamProxy.run(id); },
   addBandwidth(bytes, id) { return stmts.addBandwidth.run(bytes, id); },

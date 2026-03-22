@@ -79,11 +79,11 @@ export default function Dashboard() {
     }
   };
 
-  const handleEdit = async (id, subdomain, targetUrl) => {
+  const handleEdit = async (id, subdomain, targetUrl, country) => {
     try {
       const res = await fetch(`/api/proxies/${id}/edit`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subdomain, target_url: targetUrl }),
+        body: JSON.stringify({ subdomain, target_url: targetUrl, country }),
       });
       if (res.ok) {
         const data = await res.json();

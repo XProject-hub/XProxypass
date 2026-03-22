@@ -222,11 +222,16 @@ router.patch('/:id/toggle', (req, res) => {
 router.patch('/:id/edit', (req, res) => {
   try {
     const { id } = req.params;
-    const { subdomain, target_url } = req.body;
+    const { subdomain, target_url, country } = req.body;
 
     const proxy = db.getProxyById(id);
     if (!proxy || proxy.user_id !== req.user.id) {
       return res.status(404).json({ error: 'Proxy not found' });
+    }
+
+    if (country && country !== proxy.country) {
+      db.updateProxyCountry(id, req.user.id, country);
+      db.addActivityLog(req.user.id, req.user.username, req.ip, 'Proxy', 'EditCountry', `${proxy.subdomain}: ${proxy.country} -> ${country}`);
     }
 
     if (subdomain) {

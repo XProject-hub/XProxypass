@@ -10,6 +10,8 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, 
   const [editing, setEditing] = useState(false);
   const [editSub, setEditSub] = useState(proxy.subdomain);
   const [editTarget, setEditTarget] = useState(proxy.target_url);
+  const [editCountry, setEditCountry] = useState(proxy.country || 'auto');
+  const [countries, setCountries] = useState([]);
 
   const daysLeft = proxy.expires_at
     ? Math.max(0, Math.ceil((new Date(proxy.expires_at) - new Date()) / (1000 * 60 * 60 * 24)))
@@ -28,9 +30,16 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, 
 
   const handleEdit = async () => {
     if (onEdit) {
-      await onEdit(proxy.id, editSub, editTarget);
+      await onEdit(proxy.id, editSub, editTarget, editCountry);
     }
     setEditing(false);
+  };
+
+  const openEdit = () => {
+    setEditing(!editing);
+    if (!editing && countries.length === 0) {
+      fetch('/api/proxies/countries').then(r => r.json()).then(d => setCountries(d.countries || [])).catch(() => {});
+    }
   };
 
   return (
@@ -70,7 +79,7 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, 
         </div>
 
         <div className="flex items-center gap-1.5">
-          <button onClick={() => setEditing(!editing)} className="p-2 rounded-lg hover:bg-blue-500/10 text-slate-500 hover:text-blue-400 transition-all" title="Edit">
+          <button onClick={openEdit} className="p-2 rounded-lg hover:bg-blue-500/10 text-slate-500 hover:text-blue-400 transition-all" title="Edit">
             <Edit3 className="w-4 h-4" />
           </button>
           {proxy.stream_proxy === 0 && onRequestStream && (
@@ -104,11 +113,23 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, 
             <input className="input-field text-xs mt-1" value={editTarget}
               onChange={e => setEditTarget(e.target.value)} />
           </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wider">Country</label>
+            <select className="input-field text-xs mt-1 cursor-pointer" value={editCountry}
+              onChange={e => setEditCountry(e.target.value)}>
+              {countries.map(c => (
+                <option key={c.code} value={c.code} style={{ background: '#0d0d14', color: '#f1f5f9' }}>
+                  {c.code === 'auto' ? 'Auto (Direct)' : `${c.code} - ${c.name}`}
+                </option>
+              ))}
+              {countries.length === 0 && <option value={editCountry}>{editCountry}</option>}
+            </select>
+          </div>
           <div className="flex gap-2 pt-1">
             <button onClick={handleEdit} className="btn-primary text-xs flex items-center gap-1" style={{ padding: '0.4rem 0.8rem' }}>
               <Check className="w-3 h-3" /> Save
             </button>
-            <button onClick={() => { setEditing(false); setEditSub(proxy.subdomain); setEditTarget(proxy.target_url); }}
+            <button onClick={() => { setEditing(false); setEditSub(proxy.subdomain); setEditTarget(proxy.target_url); setEditCountry(proxy.country || 'auto'); }}
               className="btn-secondary text-xs flex items-center gap-1" style={{ padding: '0.4rem 0.8rem' }}>
               <X className="w-3 h-3" /> Cancel
             </button>
