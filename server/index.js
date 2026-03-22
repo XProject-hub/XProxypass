@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const zlib = require('zlib');
 const httpProxy = require('http-proxy');
 let HttpsProxyAgent;
 try {
@@ -256,11 +257,24 @@ app.use((req, res, next) => {
         contentType.includes('xml') || contentType.includes('vnd.apple') ||
         contentType.includes('javascript');
 
+      function decompress(buffer, encoding) {
+        try {
+          if (encoding === 'gzip') return zlib.gunzipSync(buffer);
+          if (encoding === 'deflate') return zlib.inflateSync(buffer);
+          if (encoding === 'br') return zlib.brotliDecompressSync(buffer);
+        } catch {}
+        return buffer;
+      }
+
       if (isRewritable) {
         const chunks = [];
         proxyRes.on('data', chunk => chunks.push(chunk));
         proxyRes.on('end', () => {
-          let body = Buffer.concat(chunks).toString('utf8');
+          let raw = Buffer.concat(chunks);
+          const encoding = proxyRes.headers['content-encoding'];
+          if (encoding) raw = decompress(raw, encoding);
+
+          let body = raw.toString('utf8');
           body = rewriteUrl(body);
 
           body = body.replace(/<base\s+href=["'][^"']*["']/gi, `<base href="https://${proxyHost}/"`);
