@@ -102,6 +102,37 @@ router.get('/stats', (req, res) => {
   catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
+// ── Stream Proxy Management ────────────────────────
+
+router.get('/stream-requests', (req, res) => {
+  try { res.json({ requests: db.getPendingStreamProxies() }); }
+  catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
+router.post('/proxies/:id/approve-stream', (req, res) => {
+  try {
+    const proxy = db.getProxyById(req.params.id);
+    if (!proxy) return res.status(404).json({ error: 'Proxy not found' });
+
+    db.approveStreamProxy(req.params.id);
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Stream', 'Approved', `${proxy.subdomain} (owner: ${proxy.user_id})`);
+
+    res.json({ message: 'Stream proxy approved', proxy: db.getProxyById(req.params.id) });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
+router.post('/proxies/:id/deny-stream', (req, res) => {
+  try {
+    const proxy = db.getProxyById(req.params.id);
+    if (!proxy) return res.status(404).json({ error: 'Proxy not found' });
+
+    db.denyStreamProxy(req.params.id);
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Stream', 'Denied', `${proxy.subdomain} (owner: ${proxy.user_id})`);
+
+    res.json({ message: 'Stream proxy denied' });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
 // ── Server Management ──────────────────────────────
 
 const { setupServer, checkServer } = require('../server-setup');

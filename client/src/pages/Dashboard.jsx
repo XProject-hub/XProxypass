@@ -79,6 +79,21 @@ export default function Dashboard() {
     }
   };
 
+  const handleRequestStream = async (id) => {
+    if (!confirm('Request Stream Proxy mode? This requires admin approval and is for high-bandwidth use cases like IPTV streaming.')) return;
+    try {
+      const res = await fetch(`/api/proxies/${id}/request-stream`, { method: 'POST' });
+      if (res.ok) {
+        setProxies(prev => prev.map(p => p.id === id ? { ...p, stream_proxy: 1 } : p));
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Request failed');
+      }
+    } catch (err) {
+      console.error('Stream request failed:', err);
+    }
+  };
+
   const handleDelete = async (id) => {
     if (!confirm('Are you sure you want to delete this proxy?')) return;
     try {
@@ -205,6 +220,7 @@ export default function Dashboard() {
                 onToggle={handleToggle}
                 onDelete={handleDelete}
                 onRenew={handleRenew}
+                onRequestStream={handleRequestStream}
               />
             ))}
           </div>

@@ -202,6 +202,27 @@ router.patch('/:id/toggle', (req, res) => {
   }
 });
 
+router.post('/:id/request-stream', (req, res) => {
+  try {
+    const { id } = req.params;
+    const proxy = db.getProxyById(id);
+    if (!proxy || proxy.user_id !== req.user.id) {
+      return res.status(404).json({ error: 'Proxy not found' });
+    }
+    if (proxy.stream_proxy === 2) {
+      return res.status(400).json({ error: 'Stream proxy already approved' });
+    }
+
+    db.requestStreamProxy(id, req.user.id);
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Proxy', 'StreamRequest', proxy.subdomain);
+
+    res.json({ message: 'Stream proxy requested. Waiting for admin approval.' });
+  } catch (err) {
+    console.error('Stream proxy request error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.delete('/:id', (req, res) => {
   try {
     const { id } = req.params;

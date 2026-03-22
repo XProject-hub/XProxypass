@@ -105,6 +105,8 @@ app.use(
   })
 );
 
+const activeConnections = {};
+
 app.use((req, res, next) => {
   const subdomain = getSubdomain(req.hostname);
 
@@ -117,6 +119,10 @@ app.use((req, res, next) => {
 
     db.incrementRequests(record.id);
 
+    if (!activeConnections[record.id]) activeConnections[record.id] = 0;
+    activeConnections[record.id]++;
+    res.on('close', () => { if (activeConnections[record.id] > 0) activeConnections[record.id]--; });
+
     const agent = getProxyAgent(record.country);
     const proxyOptions = {
       target: record.target_url,
@@ -124,10 +130,60 @@ app.use((req, res, next) => {
     };
     if (agent) proxyOptions.agent = agent;
 
+    if (record.stream_proxy === 2) {
+      proxyOptions.selfHandleResponse = true;
+
+      proxy.once('proxyRes', (proxyRes, req, res) => {
+        const contentType = proxyRes.headers['content-type'] || '';
+        const isRewritable = contentType.includes('text') || contentType.includes('json') ||
+          contentType.includes('mpegurl') || contentType.includes('x-mpegURL') ||
+          contentType.includes('application/xml') || contentType.includes('vnd.apple');
+
+        if (isRewritable) {
+          const chunks = [];
+          proxyRes.on('data', chunk => chunks.push(chunk));
+          proxyRes.on('end', () => {
+            let body = Buffer.concat(chunks).toString('utf8');
+            const targetUrl = new URL(record.target_url);
+            const targetHost = targetUrl.host;
+            const targetOrigin = targetUrl.origin;
+            const proxyHost = `${subdomain}.${config.domain}`;
+
+            body = body.replace(new RegExp(targetOrigin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), `https://${proxyHost}`);
+            body = body.replace(new RegExp(`http://${targetHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g'), `https://${proxyHost}`);
+            body = body.replace(new RegExp(targetHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), proxyHost);
+
+            const newHeaders = { ...proxyRes.headers };
+            delete newHeaders['content-length'];
+            delete newHeaders['content-encoding'];
+            newHeaders['transfer-encoding'] = 'chunked';
+
+            res.writeHead(proxyRes.statusCode, newHeaders);
+            res.end(body);
+
+            try { db.addBandwidth(Buffer.byteLength(body), record.id); } catch {}
+          });
+        } else {
+          const newHeaders = { ...proxyRes.headers };
+          res.writeHead(proxyRes.statusCode, newHeaders);
+          let totalBytes = 0;
+          proxyRes.on('data', chunk => { totalBytes += chunk.length; res.write(chunk); });
+          proxyRes.on('end', () => {
+            res.end();
+            try { db.addBandwidth(totalBytes, record.id); } catch {}
+          });
+        }
+      });
+    }
+
     return proxy.web(req, res, proxyOptions);
   }
 
   next();
+});
+
+app.get('/api/connections/:id', (req, res) => {
+  res.json({ connections: activeConnections[req.params.id] || 0 });
 });
 
 app.use('/api/auth', authRoutes);

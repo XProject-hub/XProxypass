@@ -7,9 +7,12 @@ import {
   LayoutList, Clock, MapPin, Server, RefreshCw, Wifi, WifiOff, CheckCircle2
 } from 'lucide-react';
 
+import { Radio } from 'lucide-react';
+
 const TABS = [
   { id: 'proxies', label: 'Proxies', icon: Globe },
   { id: 'users', label: 'Users', icon: Users },
+  { id: 'streams', label: 'Stream Requests', icon: Radio },
   { id: 'servers', label: 'Servers', icon: Server },
   { id: 'credits', label: 'Credit History', icon: CreditCard },
   { id: 'activity', label: 'Activity Log', icon: ScrollText },
@@ -23,6 +26,7 @@ export default function Admin() {
   const [creditHistory, setCreditHistory] = useState([]);
   const [activityLogs, setActivityLogs] = useState([]);
   const [servers, setServers] = useState([]);
+  const [streamRequests, setStreamRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [creditModal, setCreditModal] = useState(null);
   const [creditAmount, setCreditAmount] = useState('');
@@ -48,6 +52,8 @@ export default function Admin() {
       if (chRes.ok) setCreditHistory((await chRes.json()).history);
       if (alRes.ok) setActivityLogs((await alRes.json()).logs);
       if (svRes.ok) setServers((await svRes.json()).servers);
+      const srRes = await fetch('/api/admin/stream-requests');
+      if (srRes.ok) setStreamRequests((await srRes.json()).requests);
     } catch (err) {
       console.error('Admin load error:', err);
     } finally {
@@ -109,6 +115,16 @@ export default function Admin() {
 
   const checkServerHealth = async (id) => {
     const res = await fetch(`/api/admin/servers/${id}/check`, { method: 'POST' });
+    if (res.ok) loadData();
+  };
+
+  const approveStream = async (id) => {
+    const res = await fetch(`/api/admin/proxies/${id}/approve-stream`, { method: 'POST' });
+    if (res.ok) loadData();
+  };
+
+  const denyStream = async (id) => {
+    const res = await fetch(`/api/admin/proxies/${id}/deny-stream`, { method: 'POST' });
     if (res.ok) loadData();
   };
 
@@ -354,6 +370,64 @@ export default function Admin() {
                   </table>
                 </div>
                 {activityLogs.length === 0 && <div className="text-center py-10 text-slate-600 text-sm">No activity yet</div>}
+              </div>
+            </div>
+          )}
+
+          {/* Stream Requests Tab */}
+          {tab === 'streams' && (
+            <div>
+              <h2 className="text-xl font-bold text-slate-100 mb-6">Stream Proxy Requests</h2>
+              <div className="glass rounded-xl p-4 mb-6">
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Users can request Stream Proxy mode for their proxies. When approved, ProxyXPass will rewrite all URLs in API/M3U responses 
+                  to hide the real backend IP. This uses significant bandwidth - only approve for users with dedicated high-bandwidth servers.
+                </p>
+              </div>
+              <div className="glass rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-white/[0.06]">
+                        {['Subdomain', 'Target', 'Owner', 'Bandwidth', 'Status', 'Actions'].map(h => (
+                          <th key={h} className="text-left px-4 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {streamRequests.map(sr => (
+                        <tr key={sr.id} className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
+                          <td className="px-4 py-3 text-cyan-400 font-mono text-xs">{sr.subdomain}</td>
+                          <td className="px-4 py-3 text-slate-400 font-mono text-xs max-w-[180px] truncate">{sr.target_url}</td>
+                          <td className="px-4 py-3 text-slate-300 text-xs">{sr.owner_username || '-'}</td>
+                          <td className="px-4 py-3 text-slate-400 text-xs">{((sr.bandwidth_used || 0) / 1048576).toFixed(1)} MB</td>
+                          <td className="px-4 py-3">
+                            <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${
+                              sr.stream_proxy === 1 ? 'text-amber-400 bg-amber-500/10' : 'text-emerald-400 bg-emerald-500/10'
+                            }`}>
+                              {sr.stream_proxy === 1 ? 'Pending' : 'Approved'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1">
+                              {sr.stream_proxy === 1 && (
+                                <>
+                                  <button onClick={() => approveStream(sr.id)} className="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 text-[10px] font-semibold hover:bg-emerald-500/20 transition-all">
+                                    Approve
+                                  </button>
+                                  <button onClick={() => denyStream(sr.id)} className="px-2.5 py-1 rounded-lg bg-red-500/10 text-red-400 text-[10px] font-semibold hover:bg-red-500/20 transition-all">
+                                    Deny
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {streamRequests.length === 0 && <div className="text-center py-10 text-slate-600 text-sm">No pending stream proxy requests</div>}
               </div>
             </div>
           )}

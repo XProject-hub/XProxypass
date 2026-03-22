@@ -85,6 +85,8 @@ db.exec(`
 try { db.exec('ALTER TABLE users ADD COLUMN credits INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE proxies ADD COLUMN expires_at DATETIME'); } catch {}
 try { db.exec('ALTER TABLE proxies ADD COLUMN country TEXT DEFAULT "auto"'); } catch {}
+try { db.exec('ALTER TABLE proxies ADD COLUMN stream_proxy INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE proxies ADD COLUMN bandwidth_used INTEGER DEFAULT 0'); } catch {}
 
 const COUNTRIES = [
   { code: 'auto', name: 'Auto (Nearest)' },
@@ -134,6 +136,12 @@ const stmts = {
 
   addActivityLog: db.prepare('INSERT INTO activity_logs (user_id, username, ip_address, module, operation, detail) VALUES (?, ?, ?, ?, ?, ?)'),
   getActivityLogs: db.prepare('SELECT * FROM activity_logs ORDER BY created_at DESC LIMIT 200'),
+
+  requestStreamProxy: db.prepare('UPDATE proxies SET stream_proxy = 1 WHERE id = ? AND user_id = ?'),
+  approveStreamProxy: db.prepare('UPDATE proxies SET stream_proxy = 2 WHERE id = ?'),
+  denyStreamProxy: db.prepare('UPDATE proxies SET stream_proxy = 0 WHERE id = ?'),
+  addBandwidth: db.prepare('UPDATE proxies SET bandwidth_used = bandwidth_used + ? WHERE id = ?'),
+  getPendingStreamProxies: db.prepare("SELECT p.*, u.username as owner_username FROM proxies p LEFT JOIN users u ON p.user_id = u.id WHERE p.stream_proxy = 1 ORDER BY p.created_at DESC"),
 
   addServer: db.prepare('INSERT INTO proxy_servers (ip, port, country, label, status) VALUES (?, ?, ?, ?, ?)'),
   getAllServers: db.prepare('SELECT * FROM proxy_servers ORDER BY created_at DESC'),
@@ -192,6 +200,12 @@ module.exports = {
   addActivityLog(userId, username, ip, module, operation, detail) {
     return stmts.addActivityLog.run(userId || null, username || null, ip || null, module, operation, detail || null);
   },
+
+  requestStreamProxy(id, userId) { return stmts.requestStreamProxy.run(id, userId); },
+  approveStreamProxy(id) { return stmts.approveStreamProxy.run(id); },
+  denyStreamProxy(id) { return stmts.denyStreamProxy.run(id); },
+  addBandwidth(bytes, id) { return stmts.addBandwidth.run(bytes, id); },
+  getPendingStreamProxies() { return stmts.getPendingStreamProxies.all(); },
 
   addServer(ip, port, country, label, status) { return stmts.addServer.run(ip, port, country, label || null, status || 'pending'); },
   getAllServers() { return stmts.getAllServers.all(); },

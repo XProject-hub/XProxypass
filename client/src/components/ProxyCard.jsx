@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Globe, ArrowRight, Pause, Play, Trash2, ExternalLink, MapPin, Clock, RefreshCw } from 'lucide-react';
+import { Globe, ArrowRight, Pause, Play, Trash2, ExternalLink, MapPin, Clock, RefreshCw, Radio } from 'lucide-react';
 
-export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew }) {
+export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, onRequestStream }) {
   const proxyUrl = `${proxy.subdomain}.${domain}`;
   const isExpired = proxy.expires_at && new Date(proxy.expires_at) < new Date();
   const [showRenew, setShowRenew] = useState(false);
@@ -37,6 +37,16 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew }
                   <MapPin className="w-2.5 h-2.5" /> {proxy.country}
                 </span>
               )}
+              {proxy.stream_proxy === 2 && (
+                <span className="text-[10px] font-medium text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                  <Radio className="w-2.5 h-2.5" /> Stream
+                </span>
+              )}
+              {proxy.stream_proxy === 1 && (
+                <span className="text-[10px] font-medium text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">
+                  Stream Pending
+                </span>
+              )}
             </div>
             <a href={`http://${proxyUrl}`} target="_blank" rel="noopener noreferrer"
               className="text-xs text-slate-500 hover:text-cyan-400 transition-colors flex items-center gap-1 mt-0.5">
@@ -46,6 +56,11 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew }
         </div>
 
         <div className="flex items-center gap-1.5">
+          {proxy.stream_proxy === 0 && onRequestStream && (
+            <button onClick={() => onRequestStream(proxy.id)} className="p-2 rounded-lg hover:bg-purple-500/10 text-slate-500 hover:text-purple-400 transition-all" title="Request Stream Proxy">
+              <Radio className="w-4 h-4" />
+            </button>
+          )}
           <button onClick={() => setShowRenew(!showRenew)} className="p-2 rounded-lg hover:bg-cyan-500/10 text-slate-500 hover:text-cyan-400 transition-all" title="Renew">
             <RefreshCw className="w-4 h-4" />
           </button>
@@ -66,7 +81,12 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew }
       </div>
 
       <div className="mt-3 flex items-center justify-between text-xs text-slate-600">
-        <span>{proxy.requests_count.toLocaleString()} requests</span>
+        <div className="flex items-center gap-3">
+          <span>{proxy.requests_count.toLocaleString()} requests</span>
+          {proxy.bandwidth_used > 0 && (
+            <span>{(proxy.bandwidth_used / 1048576).toFixed(1)} MB</span>
+          )}
+        </div>
         <div className="flex items-center gap-3">
           {daysLeft !== null && (
             <span className={`flex items-center gap-1 ${isExpired ? 'text-red-400' : daysLeft <= 7 ? 'text-amber-400' : ''}`}>
