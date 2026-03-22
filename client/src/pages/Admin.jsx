@@ -43,14 +43,22 @@ export default function Admin() {
 
   useEffect(() => { loadData(); }, []);
 
+  const [proxyConns, setProxyConns] = useState({});
+
   useEffect(() => {
-    if (tab !== 'servers') return;
-    const interval = setInterval(async () => {
+    if (tab !== 'servers' && tab !== 'proxies' && tab !== 'streams') return;
+    const fetchConns = async () => {
       try {
         const res = await fetch('/api/server-connections');
-        if (res.ok) setServerConns((await res.json()).connections || {});
+        if (res.ok) {
+          const data = await res.json();
+          setServerConns(data.servers || {});
+          setProxyConns(data.proxies || {});
+        }
       } catch {}
-    }, 5000);
+    };
+    fetchConns();
+    const interval = setInterval(fetchConns, 5000);
     return () => clearInterval(interval);
   }, [tab]);
 
@@ -285,37 +293,45 @@ export default function Admin() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-white/[0.06]">
-                        {['ID', 'Subdomain', 'Target URL', 'Country', 'Owner', 'Requests', 'Status', 'Expires', ''].map(h => (
+                        {['Subdomain', 'Target', 'Owner', 'Conn', 'BW Used', 'Requests', 'Status', ''].map(h => (
                           <th key={h} className="text-left px-4 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {proxies.map(p => (
+                      {proxies.map(p => {
+                        const conn = proxyConns[p.id] || 0;
+                        const bw = p.bandwidth_used || 0;
+                        const bwDisplay = bw > 1073741824 ? `${(bw/1073741824).toFixed(1)} GB` : `${(bw/1048576).toFixed(1)} MB`;
+                        return (
                         <tr key={p.id} className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
-                          <td className="px-4 py-3 text-slate-600 font-mono text-xs">{p.id}</td>
-                          <td className="px-4 py-3 text-cyan-400 font-mono text-xs">{p.subdomain}</td>
-                          <td className="px-4 py-3 text-slate-400 font-mono text-xs max-w-[180px] truncate">{p.target_url}</td>
-                          <td className="px-4 py-3">
-                            <span className="inline-flex items-center gap-1 text-xs text-slate-400">
-                              <MapPin className="w-3 h-3 text-slate-600" /> {p.country || 'auto'}
-                            </span>
+                          <td className="px-3 py-3">
+                            <div className="text-cyan-400 font-mono text-xs">{p.subdomain}</div>
+                            <div className="text-[10px] text-slate-600 flex items-center gap-1 mt-0.5">
+                              <MapPin className="w-2.5 h-2.5" /> {p.country || 'auto'}
+                              {p.stream_proxy === 2 && <span className="text-purple-400 ml-1">STREAM</span>}
+                            </div>
                           </td>
-                          <td className="px-4 py-3 text-slate-300 text-xs">{p.owner_username || '-'}</td>
-                          <td className="px-4 py-3 text-slate-400 text-xs">{p.requests_count.toLocaleString()}</td>
-                          <td className="px-4 py-3">
+                          <td className="px-3 py-3 text-slate-400 font-mono text-[10px] max-w-[150px] truncate">{p.target_url}</td>
+                          <td className="px-3 py-3 text-slate-300 text-xs">{p.owner_username || '-'}</td>
+                          <td className="px-3 py-3">
+                            <span className={`text-xs font-bold ${conn > 0 ? 'text-emerald-400' : 'text-slate-600'}`}>{conn}</span>
+                          </td>
+                          <td className="px-3 py-3 text-xs text-slate-400">{bwDisplay}</td>
+                          <td className="px-3 py-3 text-slate-400 text-xs">{p.requests_count.toLocaleString()}</td>
+                          <td className="px-3 py-3">
                             <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${p.is_active ? 'text-emerald-400 bg-emerald-500/10' : 'text-slate-500 bg-white/[0.03]'}`}>
                               {p.is_active ? 'Active' : 'Paused'}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-slate-500 text-xs">{p.expires_at ? new Date(p.expires_at).toLocaleDateString() : 'Never'}</td>
-                          <td className="px-4 py-3 text-right">
+                          <td className="px-3 py-3 text-right">
                             <button onClick={() => deleteProxy(p.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-slate-600 hover:text-red-400 transition-all">
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

@@ -337,14 +337,18 @@ app.use((req, res, next) => {
         });
       } else {
         res.writeHead(proxyRes.statusCode, newHeaders);
+        let totalBytes = 0;
         proxyRes.on('data', chunk => {
           res.write(chunk);
+          totalBytes += chunk.length;
           if (!bandwidthPerSecond[record.id]) bandwidthPerSecond[record.id] = 0;
           bandwidthPerSecond[record.id] += chunk.length;
         });
         proxyRes.on('end', () => {
           res.end();
-          try { db.addBandwidth(bandwidthPerSecond[record.id] || 0, record.id); } catch {}
+          if (totalBytes > 0) {
+            try { db.addBandwidth(totalBytes, record.id); } catch {}
+          }
         });
       }
     });
@@ -369,7 +373,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/paypal', paypalRoutes);
 
 app.get('/api/server-connections', (req, res) => {
-  res.json({ connections: serverConnections });
+  res.json({ servers: serverConnections, proxies: activeConnections });
 });
 
 app.get('/api/proxy-pool/stats', (req, res) => {
