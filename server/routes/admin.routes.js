@@ -168,6 +168,31 @@ router.post('/proxies/:id/approve-stream', (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
+router.post('/proxies/:id/bandwidth-limit', (req, res) => {
+  try {
+    const { limit_mbps } = req.body;
+    const proxy = db.getProxyById(req.params.id);
+    if (!proxy) return res.status(404).json({ error: 'Proxy not found' });
+
+    db.setBandwidthLimit(req.params.id, parseInt(limit_mbps) || 0);
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Stream', 'BandwidthLimit', `${proxy.subdomain}: ${limit_mbps || 'unlimited'} Mbps`);
+
+    res.json({ message: 'Bandwidth limit updated', proxy: db.getProxyById(req.params.id) });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
+router.post('/proxies/:id/reset-bandwidth', (req, res) => {
+  try {
+    const proxy = db.getProxyById(req.params.id);
+    if (!proxy) return res.status(404).json({ error: 'Proxy not found' });
+
+    db.resetBandwidth(req.params.id);
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Stream', 'BandwidthReset', proxy.subdomain);
+
+    res.json({ message: 'Bandwidth counter reset' });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
 router.post('/proxies/:id/deny-stream', (req, res) => {
   try {
     const proxy = db.getProxyById(req.params.id);

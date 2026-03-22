@@ -432,7 +432,7 @@ export default function Admin() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-white/[0.06]">
-                        {['Subdomain', 'Target', 'Owner', 'Bandwidth', 'Status', 'Actions'].map(h => (
+                        {['Subdomain', 'Target', 'Owner', 'Used', 'Limit', 'Status', 'Actions'].map(h => (
                           <th key={h} className="text-left px-4 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
@@ -443,7 +443,24 @@ export default function Admin() {
                           <td className="px-4 py-3 text-cyan-400 font-mono text-xs">{sr.subdomain}</td>
                           <td className="px-4 py-3 text-slate-400 font-mono text-xs max-w-[180px] truncate">{sr.target_url}</td>
                           <td className="px-4 py-3 text-slate-300 text-xs">{sr.owner_username || '-'}</td>
-                          <td className="px-4 py-3 text-slate-400 text-xs">{((sr.bandwidth_used || 0) / 1048576).toFixed(1)} MB</td>
+                          <td className="px-4 py-3 text-slate-400 text-xs">
+                            {(sr.bandwidth_used || 0) > 1073741824 ? `${((sr.bandwidth_used || 0) / 1073741824).toFixed(1)} GB` : `${((sr.bandwidth_used || 0) / 1048576).toFixed(1)} MB`}
+                          </td>
+                          <td className="px-4 py-3 text-xs">
+                            {sr.stream_proxy === 2 ? (
+                              <input type="number" min="0" placeholder="0=unlimited"
+                                className="input-field text-xs w-20" style={{ padding: '0.25rem 0.5rem' }}
+                                defaultValue={sr.bandwidth_limit || ''}
+                                onBlur={async (e) => {
+                                  await fetch(`/api/admin/proxies/${sr.id}/bandwidth-limit`, {
+                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ limit_mbps: parseInt(e.target.value) || 0 }),
+                                  });
+                                }}
+                              />
+                            ) : <span className="text-slate-600">-</span>}
+                            <span className="text-[10px] text-slate-600 ml-1">Mbps</span>
+                          </td>
                           <td className="px-4 py-3">
                             <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${
                               sr.stream_proxy === 1 ? 'text-amber-400 bg-amber-500/10' : 'text-emerald-400 bg-emerald-500/10'
@@ -462,6 +479,11 @@ export default function Admin() {
                                     Deny
                                   </button>
                                 </>
+                              )}
+                              {sr.stream_proxy === 2 && (
+                                <button onClick={() => denyStream(sr.id)} className="px-2.5 py-1 rounded-lg bg-red-500/10 text-red-400 text-[10px] font-semibold hover:bg-red-500/20 transition-all">
+                                  Revoke
+                                </button>
                               )}
                             </div>
                           </td>

@@ -106,6 +106,32 @@ app.use(
 );
 
 const activeConnections = {};
+const bandwidthPerSecond = {};
+
+const STREAM_EXTENSIONS = /\.(ts|m3u8|m3u|mpd|mp4|mkv|avi|flv|wmv|mov|webm|mpg|mpeg)(\?|$)/i;
+const STREAM_CONTENT_TYPES = /(video|audio|mpegurl|octet-stream|x-mpegURL|mp2t)/i;
+
+function isStreamRequest(req) {
+  const url = req.url || '';
+  const accept = req.headers?.accept || '';
+  if (STREAM_EXTENSIONS.test(url)) return true;
+  if (url.includes('/live/') || url.includes('/movie/') || url.includes('/series/')) return true;
+  if (STREAM_CONTENT_TYPES.test(accept)) return true;
+  return false;
+}
+
+function checkBandwidthLimit(proxyId, limitMbps) {
+  if (!limitMbps || limitMbps <= 0) return true;
+  const currentBps = bandwidthPerSecond[proxyId] || 0;
+  const limitBps = limitMbps * 125000;
+  return currentBps < limitBps;
+}
+
+setInterval(() => {
+  for (const id in bandwidthPerSecond) {
+    bandwidthPerSecond[id] = 0;
+  }
+}, 1000);
 
 app.use((req, res, next) => {
   const subdomain = getSubdomain(req.hostname);
@@ -115,6 +141,18 @@ app.use((req, res, next) => {
     if (!record || !record.is_active || (record.expires_at && new Date(record.expires_at) < new Date())) {
       res.writeHead(404, { 'Content-Type': 'text/html' });
       return res.end(NOT_FOUND_PAGE);
+    }
+
+    if (record.stream_proxy !== 2 && isStreamRequest(req)) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Streaming is not enabled for this proxy. Contact admin to enable Stream Proxy mode.' }));
+    }
+
+    if (record.stream_proxy === 2 && record.bandwidth_limit > 0) {
+      if (!checkBandwidthLimit(record.id, record.bandwidth_limit)) {
+        res.writeHead(429, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Bandwidth limit exceeded. Please try again later.' }));
+      }
     }
 
     db.incrementRequests(record.id);
@@ -133,7 +171,7 @@ app.use((req, res, next) => {
     if (record.stream_proxy === 2) {
       proxyOptions.selfHandleResponse = true;
 
-      proxy.once('proxyRes', (proxyRes, req, res) => {
+      proxy.once('proxyRes', (proxyRes, _req, _res) => {
         const contentType = proxyRes.headers['content-type'] || '';
         const isRewritable = contentType.includes('text') || contentType.includes('json') ||
           contentType.includes('mpegurl') || contentType.includes('x-mpegURL') ||
@@ -144,14 +182,16 @@ app.use((req, res, next) => {
           proxyRes.on('data', chunk => chunks.push(chunk));
           proxyRes.on('end', () => {
             let body = Buffer.concat(chunks).toString('utf8');
-            const targetUrl = new URL(record.target_url);
-            const targetHost = targetUrl.host;
-            const targetOrigin = targetUrl.origin;
-            const proxyHost = `${subdomain}.${config.domain}`;
+            try {
+              const targetUrl = new URL(record.target_url);
+              const targetHost = targetUrl.host;
+              const targetOrigin = targetUrl.origin;
+              const proxyHost = `${subdomain}.${config.domain}`;
 
-            body = body.replace(new RegExp(targetOrigin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), `https://${proxyHost}`);
-            body = body.replace(new RegExp(`http://${targetHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g'), `https://${proxyHost}`);
-            body = body.replace(new RegExp(targetHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), proxyHost);
+              body = body.replace(new RegExp(targetOrigin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), `https://${proxyHost}`);
+              body = body.replace(new RegExp(`http://${targetHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g'), `https://${proxyHost}`);
+              body = body.replace(new RegExp(targetHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), proxyHost);
+            } catch {}
 
             const newHeaders = { ...proxyRes.headers };
             delete newHeaders['content-length'];
@@ -161,16 +201,22 @@ app.use((req, res, next) => {
             res.writeHead(proxyRes.statusCode, newHeaders);
             res.end(body);
 
-            try { db.addBandwidth(Buffer.byteLength(body), record.id); } catch {}
+            const bytes = Buffer.byteLength(body);
+            if (!bandwidthPerSecond[record.id]) bandwidthPerSecond[record.id] = 0;
+            bandwidthPerSecond[record.id] += bytes;
+            try { db.addBandwidth(bytes, record.id); } catch {}
           });
         } else {
           const newHeaders = { ...proxyRes.headers };
           res.writeHead(proxyRes.statusCode, newHeaders);
-          let totalBytes = 0;
-          proxyRes.on('data', chunk => { totalBytes += chunk.length; res.write(chunk); });
+          proxyRes.on('data', chunk => {
+            res.write(chunk);
+            if (!bandwidthPerSecond[record.id]) bandwidthPerSecond[record.id] = 0;
+            bandwidthPerSecond[record.id] += chunk.length;
+          });
           proxyRes.on('end', () => {
             res.end();
-            try { db.addBandwidth(totalBytes, record.id); } catch {}
+            try { db.addBandwidth(bandwidthPerSecond[record.id] || 0, record.id); } catch {}
           });
         }
       });
@@ -183,7 +229,10 @@ app.use((req, res, next) => {
 });
 
 app.get('/api/connections/:id', (req, res) => {
-  res.json({ connections: activeConnections[req.params.id] || 0 });
+  res.json({
+    connections: activeConnections[req.params.id] || 0,
+    bandwidth_mbps: ((bandwidthPerSecond[req.params.id] || 0) / 125000).toFixed(2),
+  });
 });
 
 app.use('/api/auth', authRoutes);

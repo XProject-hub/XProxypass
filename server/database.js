@@ -95,6 +95,7 @@ try { db.exec('ALTER TABLE proxies ADD COLUMN expires_at DATETIME'); } catch {}
 try { db.exec('ALTER TABLE proxies ADD COLUMN country TEXT DEFAULT "auto"'); } catch {}
 try { db.exec('ALTER TABLE proxies ADD COLUMN stream_proxy INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE proxies ADD COLUMN bandwidth_used INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE proxies ADD COLUMN bandwidth_limit INTEGER DEFAULT 0'); } catch {}
 
 const COUNTRIES = [
   { code: 'auto', name: 'Auto (Nearest)' },
@@ -149,6 +150,8 @@ const stmts = {
   approveStreamProxy: db.prepare('UPDATE proxies SET stream_proxy = 2 WHERE id = ?'),
   denyStreamProxy: db.prepare('UPDATE proxies SET stream_proxy = 0 WHERE id = ?'),
   addBandwidth: db.prepare('UPDATE proxies SET bandwidth_used = bandwidth_used + ? WHERE id = ?'),
+  setBandwidthLimit: db.prepare('UPDATE proxies SET bandwidth_limit = ? WHERE id = ?'),
+  resetBandwidth: db.prepare('UPDATE proxies SET bandwidth_used = 0 WHERE id = ?'),
   getPendingStreamProxies: db.prepare("SELECT p.*, u.username as owner_username FROM proxies p LEFT JOIN users u ON p.user_id = u.id WHERE p.stream_proxy = 1 ORDER BY p.created_at DESC"),
 
   getSetting: db.prepare('SELECT value FROM settings WHERE key = ?'),
@@ -216,6 +219,8 @@ module.exports = {
   approveStreamProxy(id) { return stmts.approveStreamProxy.run(id); },
   denyStreamProxy(id) { return stmts.denyStreamProxy.run(id); },
   addBandwidth(bytes, id) { return stmts.addBandwidth.run(bytes, id); },
+  setBandwidthLimit(id, limitMbps) { return stmts.setBandwidthLimit.run(limitMbps, id); },
+  resetBandwidth(id) { return stmts.resetBandwidth.run(id); },
   getPendingStreamProxies() { return stmts.getPendingStreamProxies.all(); },
 
   getSetting(key) { const r = stmts.getSetting.get(key); return r ? r.value : null; },
