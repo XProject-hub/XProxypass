@@ -77,6 +77,7 @@ db.exec(`
     country TEXT NOT NULL,
     label TEXT,
     max_connections INTEGER DEFAULT 100,
+    bandwidth_limit TEXT DEFAULT '1Gbps',
     status TEXT DEFAULT 'pending',
     last_check DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -106,6 +107,7 @@ try { db.exec('ALTER TABLE proxies ADD COLUMN bandwidth_used INTEGER DEFAULT 0')
 try { db.exec('ALTER TABLE proxies ADD COLUMN bandwidth_limit INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE proxies ADD COLUMN proxy_domain TEXT'); } catch {}
 try { db.exec('ALTER TABLE proxy_servers ADD COLUMN max_connections INTEGER DEFAULT 100'); } catch {}
+try { db.exec("ALTER TABLE proxy_servers ADD COLUMN bandwidth_limit TEXT DEFAULT '1Gbps'"); } catch {}
 
 const COUNTRIES = [
   { code: 'auto', name: 'Auto (Nearest)' },
