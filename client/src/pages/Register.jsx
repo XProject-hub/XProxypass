@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
-import { UserPlus, Mail, Lock, User, Activity, ArrowLeft } from 'lucide-react';
+import { UserPlus, Mail, Lock, User, ArrowLeft } from 'lucide-react';
 
 export default function Register() {
   const { setUser } = useAuth();
@@ -51,9 +51,7 @@ export default function Register() {
 
         <div className="glass rounded-2xl p-8">
           <div className="flex items-center gap-2.5 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
-              <Activity className="w-4 h-4 text-white" />
-            </div>
+            <img src="/logo.png" alt="ProxyXPass" className="w-8 h-8 object-contain" />
             <span className="text-lg font-bold text-slate-100">Proxy<span className="gradient-text">XPass</span></span>
           </div>
 

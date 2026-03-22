@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../App';
-import { Menu, X, Activity } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { useState } from 'react';
 
 export default function Navbar() {
@@ -14,9 +14,7 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link to="/" className="flex items-center gap-2.5 group">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
-              <Activity className="w-4 h-4 text-white" />
-            </div>
+            <img src="/logo.png" alt="ProxyXPass" className="w-8 h-8 object-contain" />
             <span className="text-lg font-bold text-slate-100 tracking-tight">
               Proxy<span className="gradient-text">XPass</span>
             </span>
