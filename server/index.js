@@ -22,7 +22,7 @@ const paypalRoutes = require('./routes/paypal.routes');
 
 const app = express();
 const proxy = httpProxy.createProxyServer({ xfwd: true });
-proxy.setMaxListeners(0);
+require('events').EventEmitter.defaultMaxListeners = 0;
 
 proxyPool.init();
 
