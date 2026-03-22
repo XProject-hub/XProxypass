@@ -144,7 +144,7 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, 
       </div>
 
       {/* Bandwidth Bar */}
-      {proxy.bandwidth_used > 0 && (
+      {proxy.stream_proxy === 2 && proxy.bandwidth_used > 0 && (
         <div className="mt-3 p-3 rounded-lg bg-white/[0.02]">
           <div className="flex items-center justify-between text-[10px] text-slate-500 mb-1.5">
             <span>Bandwidth Used</span>
