@@ -1,7 +1,11 @@
 const express = require('express');
 const http = require('http');
 const httpProxy = require('http-proxy');
-const { HttpsProxyAgent } = require('https-proxy-agent');
+let HttpsProxyAgent;
+try {
+  HttpsProxyAgent = require('https-proxy-agent');
+  if (HttpsProxyAgent.HttpsProxyAgent) HttpsProxyAgent = HttpsProxyAgent.HttpsProxyAgent;
+} catch {}
 const path = require('path');
 const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
@@ -70,7 +74,7 @@ function getSubdomain(hostname) {
 }
 
 function getProxyAgent(country) {
-  if (!country || country === 'auto') return undefined;
+  if (!country || country === 'auto' || !HttpsProxyAgent) return undefined;
   const upstream = proxyPool.getRandomProxy(country);
   if (!upstream) return undefined;
   try {
