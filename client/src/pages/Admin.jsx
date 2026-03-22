@@ -536,18 +536,23 @@ export default function Admin() {
                           </td>
                           <td className="px-4 py-3 text-xs">
                             {sr.stream_proxy === 2 ? (
-                              <input type="number" min="0" placeholder="0=unlimited"
-                                className="input-field text-xs w-20" style={{ padding: '0.25rem 0.5rem' }}
-                                defaultValue={sr.bandwidth_limit || ''}
-                                onBlur={async (e) => {
-                                  await fetch(`/api/admin/proxies/${sr.id}/bandwidth-limit`, {
-                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ limit_mbps: parseInt(e.target.value) || 0 }),
-                                  });
-                                }}
-                              />
+                              <div className="flex items-center gap-1">
+                                <input type="number" min="0" placeholder="0"
+                                  key={`bw-${sr.id}-${sr.bandwidth_limit}`}
+                                  className="input-field text-xs w-20" style={{ padding: '0.25rem 0.5rem' }}
+                                  defaultValue={sr.bandwidth_limit || 0}
+                                  onBlur={async (e) => {
+                                    const val = parseInt(e.target.value) || 0;
+                                    await fetch(`/api/admin/proxies/${sr.id}/bandwidth-limit`, {
+                                      method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ limit_mbps: val }),
+                                    });
+                                    loadData();
+                                  }}
+                                />
+                                <span className="text-[10px] text-slate-600">Mbps</span>
+                              </div>
                             ) : <span className="text-slate-600">-</span>}
-                            <span className="text-[10px] text-slate-600 ml-1">Mbps</span>
                           </td>
                           <td className="px-4 py-3">
                             <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${
