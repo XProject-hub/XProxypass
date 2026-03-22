@@ -122,6 +122,42 @@ router.post('/settings', (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
+// ── Domain Management ──────────────────────────────
+
+router.get('/domains', (req, res) => {
+  try { res.json({ domains: db.getAllDomains() }); }
+  catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
+router.post('/domains', (req, res) => {
+  try {
+    const { domain } = req.body;
+    if (!domain) return res.status(400).json({ error: 'Domain is required' });
+    const clean = domain.toLowerCase().trim().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+    if (db.getAllDomains().find(d => d.domain === clean)) {
+      return res.status(409).json({ error: 'Domain already exists' });
+    }
+    const result = db.addDomain(clean);
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Domain', 'Add', clean);
+    res.status(201).json({ domain: { id: result.lastInsertRowid, domain: clean, is_active: 1 } });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
+router.patch('/domains/:id/toggle', (req, res) => {
+  try {
+    db.toggleDomain(req.params.id);
+    res.json({ message: 'Domain toggled' });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
+router.delete('/domains/:id', (req, res) => {
+  try {
+    const result = db.deleteDomain(req.params.id);
+    if (result.changes === 0) return res.status(404).json({ error: 'Domain not found' });
+    res.json({ message: 'Domain deleted' });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
 // ── Admin Create User ──────────────────────────────
 
 const bcrypt = require('bcryptjs');

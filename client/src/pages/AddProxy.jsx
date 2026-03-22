@@ -5,19 +5,24 @@ import { Globe, ArrowRight, ArrowLeft, Server, CheckCircle2, Clock, CreditCard, 
 
 export default function AddProxy() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ subdomain: '', target_url: '', country: 'auto', validity: '1month' });
+  const [form, setForm] = useState({ subdomain: '', target_url: '', country: 'auto', validity: '1month', proxy_domain: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [credits, setCredits] = useState(0);
   const [countries, setCountries] = useState([]);
   const [validityOptions, setValidityOptions] = useState([]);
+  const [availableDomains, setAvailableDomains] = useState([]);
 
-  const domain = window.location.hostname;
+  const domain = form.proxy_domain || window.location.hostname;
 
   useEffect(() => {
     fetch('/api/auth/me').then(r => r.json()).then(d => setCredits(d.user?.credits || 0)).catch(() => {});
     fetch('/api/proxies/countries').then(r => r.json()).then(d => setCountries(d.countries || [])).catch(() => {});
+    fetch('/api/proxies/domains').then(r => r.json()).then(d => {
+      setAvailableDomains(d.domains || []);
+      if (d.domains?.length > 0) setForm(f => ({ ...f, proxy_domain: d.domains[0].domain }));
+    }).catch(() => {});
     fetch('/api/proxies/validity-options').then(r => r.json()).then(d => setValidityOptions(d.options || [])).catch(() => {});
   }, []);
 
@@ -88,7 +93,16 @@ export default function AddProxy() {
                       value={form.subdomain} onChange={(e) => setForm({ ...form, subdomain: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
                       required maxLength={32} />
                   </div>
-                  <div className="flex items-center px-4 glass rounded-r-lg border-l-0 text-sm text-slate-500 font-mono whitespace-nowrap">.{domain}</div>
+                  {availableDomains.length > 1 ? (
+                    <select className="input-field text-xs rounded-l-none border-l-0 w-auto cursor-pointer" style={{ maxWidth: '180px' }}
+                      value={form.proxy_domain} onChange={(e) => setForm({ ...form, proxy_domain: e.target.value })}>
+                      {availableDomains.map(d => (
+                        <option key={d.domain} value={d.domain} style={{ background: '#0d0d14', color: '#f1f5f9' }}>.{d.domain}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="flex items-center px-4 glass rounded-r-lg border-l-0 text-sm text-slate-500 font-mono whitespace-nowrap">.{domain}</div>
+                  )}
                 </div>
               </div>
 

@@ -65,11 +65,23 @@ proxy.on('error', (err, req, res) => {
 
 function getSubdomain(hostname) {
   if (!hostname) return null;
+
   const main = config.domain;
   if (hostname === main) return null;
   if (hostname.endsWith('.' + main)) {
-    return hostname.slice(0, -(main.length + 1));
+    return { subdomain: hostname.slice(0, -(main.length + 1)), domain: main };
   }
+
+  try {
+    const domains = db.getActiveDomains();
+    for (const d of domains) {
+      if (hostname === d.domain) return null;
+      if (hostname.endsWith('.' + d.domain)) {
+        return { subdomain: hostname.slice(0, -(d.domain.length + 1)), domain: d.domain };
+      }
+    }
+  } catch {}
+
   return null;
 }
 
@@ -134,9 +146,10 @@ setInterval(() => {
 }, 1000);
 
 app.use((req, res, next) => {
-  const subdomain = getSubdomain(req.hostname);
+  const result = getSubdomain(req.hostname);
 
-  if (subdomain) {
+  if (result) {
+    const { subdomain, domain } = result;
     const record = db.getProxyBySubdomain(subdomain);
     if (!record || !record.is_active || (record.expires_at && new Date(record.expires_at) < new Date())) {
       res.writeHead(404, { 'Content-Type': 'text/html' });
@@ -259,10 +272,10 @@ const server = http.createServer(app);
 
 server.on('upgrade', (req, socket, head) => {
   const host = (req.headers.host || '').split(':')[0];
-  const subdomain = getSubdomain(host);
+  const result = getSubdomain(host);
 
-  if (subdomain) {
-    const record = db.getProxyBySubdomain(subdomain);
+  if (result) {
+    const record = db.getProxyBySubdomain(result.subdomain);
     if (record && record.is_active && !(record.expires_at && new Date(record.expires_at) < new Date())) {
       const agent = getProxyAgent(record.country);
       const opts = { target: record.target_url, changeOrigin: true };

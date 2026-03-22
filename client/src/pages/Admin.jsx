@@ -7,15 +7,16 @@ import {
   LayoutList, Clock, MapPin, Server, RefreshCw, Wifi, WifiOff, CheckCircle2
 } from 'lucide-react';
 
-import { Radio } from 'lucide-react';
+import { Radio, Link2 } from 'lucide-react';
 
 const TABS = [
   { id: 'proxies', label: 'Proxies', icon: Globe },
   { id: 'users', label: 'Users', icon: Users },
-  { id: 'streams', label: 'Stream Requests', icon: Radio },
+  { id: 'domains', label: 'Domains', icon: Link2 },
+  { id: 'streams', label: 'Streams', icon: Radio },
   { id: 'servers', label: 'Servers', icon: Server },
-  { id: 'credits', label: 'Credit History', icon: CreditCard },
-  { id: 'activity', label: 'Activity Log', icon: ScrollText },
+  { id: 'credits', label: 'Credits', icon: CreditCard },
+  { id: 'activity', label: 'Activity', icon: ScrollText },
 ];
 
 export default function Admin() {
@@ -27,6 +28,8 @@ export default function Admin() {
   const [activityLogs, setActivityLogs] = useState([]);
   const [servers, setServers] = useState([]);
   const [streamRequests, setStreamRequests] = useState([]);
+  const [adminDomains, setAdminDomains] = useState([]);
+  const [newDomain, setNewDomain] = useState('');
   const [regOpen, setRegOpen] = useState(true);
   const [createUserModal, setCreateUserModal] = useState(false);
   const [newUser, setNewUser] = useState({ username: '', email: '', password: '', credits: '0' });
@@ -57,6 +60,8 @@ export default function Admin() {
       if (svRes.ok) setServers((await svRes.json()).servers);
       const srRes = await fetch('/api/admin/stream-requests');
       if (srRes.ok) setStreamRequests((await srRes.json()).requests);
+      const dmRes = await fetch('/api/admin/domains');
+      if (dmRes.ok) setAdminDomains((await dmRes.json()).domains);
       const setRes = await fetch('/api/admin/settings');
       if (setRes.ok) { const d = await setRes.json(); setRegOpen(d.registration_open); }
     } catch (err) {
@@ -131,6 +136,27 @@ export default function Admin() {
   const denyStream = async (id) => {
     const res = await fetch(`/api/admin/proxies/${id}/deny-stream`, { method: 'POST' });
     if (res.ok) loadData();
+  };
+
+  const addDomain = async () => {
+    if (!newDomain) return;
+    const res = await fetch('/api/admin/domains', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ domain: newDomain }),
+    });
+    if (res.ok) { setNewDomain(''); loadData(); }
+    else { const d = await res.json(); alert(d.error || 'Failed'); }
+  };
+
+  const deleteDomainItem = async (id) => {
+    if (!confirm('Delete this domain?')) return;
+    const res = await fetch(`/api/admin/domains/${id}`, { method: 'DELETE' });
+    if (res.ok) setAdminDomains(prev => prev.filter(d => d.id !== id));
+  };
+
+  const toggleDomainItem = async (id) => {
+    await fetch(`/api/admin/domains/${id}/toggle`, { method: 'PATCH' });
+    loadData();
   };
 
   const toggleRegistration = async () => {
@@ -413,6 +439,68 @@ export default function Admin() {
                   </table>
                 </div>
                 {activityLogs.length === 0 && <div className="text-center py-10 text-slate-600 text-sm">No activity yet</div>}
+              </div>
+            </div>
+          )}
+
+          {/* Domains Tab */}
+          {tab === 'domains' && (
+            <div>
+              <h2 className="text-xl font-bold text-slate-100 mb-6">Proxy Domains</h2>
+              <div className="glass rounded-xl p-4 mb-6">
+                <p className="text-xs text-slate-400 mb-4">
+                  Add additional domains for proxy subdomains. Users can choose which domain to use when creating a proxy.
+                  Each domain needs DNS A record + wildcard A record pointing to your server, plus wildcard SSL certificate.
+                </p>
+                <div className="flex gap-2">
+                  <input className="input-field text-xs flex-1" placeholder="proxy-network.com" value={newDomain} onChange={e => setNewDomain(e.target.value)} />
+                  <button onClick={addDomain} className="btn-primary text-xs flex items-center gap-1.5" style={{ padding: '0.5rem 1rem' }}>
+                    <Plus className="w-3.5 h-3.5" /> Add Domain
+                  </button>
+                </div>
+              </div>
+
+              <div className="glass rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-white/[0.06]">
+                        {['ID', 'Domain', 'Status', 'Added', ''].map(h => (
+                          <th key={h} className="text-left px-4 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {adminDomains.map(d => (
+                        <tr key={d.id} className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
+                          <td className="px-4 py-3 text-slate-600 font-mono text-xs">{d.id}</td>
+                          <td className="px-4 py-3 text-cyan-400 font-mono text-xs">{d.domain}</td>
+                          <td className="px-4 py-3">
+                            <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${d.is_active ? 'text-emerald-400 bg-emerald-500/10' : 'text-slate-500 bg-white/[0.03]'}`}>
+                              {d.is_active ? 'Active' : 'Disabled'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-500 text-xs">{new Date(d.created_at).toLocaleDateString()}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-1">
+                              <button onClick={() => toggleDomainItem(d.id)} className={`p-1.5 rounded-lg transition-all ${d.is_active ? 'hover:bg-amber-500/10 text-slate-600 hover:text-amber-400' : 'hover:bg-emerald-500/10 text-slate-600 hover:text-emerald-400'}`} title="Toggle">
+                                {d.is_active ? <WifiOff className="w-3.5 h-3.5" /> : <Wifi className="w-3.5 h-3.5" />}
+                              </button>
+                              <button onClick={() => deleteDomainItem(d.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-slate-600 hover:text-red-400 transition-all" title="Delete">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {adminDomains.length === 0 && (
+                  <div className="text-center py-10 text-slate-600 text-sm">
+                    No additional domains. The default domain from .env is always available.
+                  </div>
+                )}
               </div>
             </div>
           )}

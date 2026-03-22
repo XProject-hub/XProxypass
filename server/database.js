@@ -87,6 +87,13 @@ db.exec(`
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS domains (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    domain TEXT UNIQUE NOT NULL,
+    is_active INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 try { db.exec("INSERT OR IGNORE INTO settings (key, value) VALUES ('registration_open', 'true')"); } catch {}
 
@@ -96,6 +103,7 @@ try { db.exec('ALTER TABLE proxies ADD COLUMN country TEXT DEFAULT "auto"'); } c
 try { db.exec('ALTER TABLE proxies ADD COLUMN stream_proxy INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE proxies ADD COLUMN bandwidth_used INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE proxies ADD COLUMN bandwidth_limit INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE proxies ADD COLUMN proxy_domain TEXT'); } catch {}
 
 const COUNTRIES = [
   { code: 'auto', name: 'Auto (Nearest)' },
@@ -156,6 +164,14 @@ const stmts = {
 
   getSetting: db.prepare('SELECT value FROM settings WHERE key = ?'),
   setSetting: db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)'),
+
+  addDomain: db.prepare('INSERT INTO domains (domain) VALUES (?)'),
+  getAllDomains: db.prepare('SELECT * FROM domains ORDER BY created_at DESC'),
+  getActiveDomains: db.prepare("SELECT * FROM domains WHERE is_active = 1 ORDER BY domain ASC"),
+  deleteDomain: db.prepare('DELETE FROM domains WHERE id = ?'),
+  toggleDomain: db.prepare('UPDATE domains SET is_active = CASE WHEN is_active = 1 THEN 0 ELSE 1 END WHERE id = ?'),
+  setProxyDomain: db.prepare('UPDATE proxies SET proxy_domain = ? WHERE id = ?'),
+  getProxyBySubdomainAndDomain: db.prepare('SELECT * FROM proxies WHERE subdomain = ? AND proxy_domain = ?'),
 
   addServer: db.prepare('INSERT INTO proxy_servers (ip, port, country, label, status) VALUES (?, ?, ?, ?, ?)'),
   getAllServers: db.prepare('SELECT * FROM proxy_servers ORDER BY created_at DESC'),
@@ -225,6 +241,14 @@ module.exports = {
 
   getSetting(key) { const r = stmts.getSetting.get(key); return r ? r.value : null; },
   setSetting(key, value) { return stmts.setSetting.run(key, value); },
+
+  addDomain(domain) { return stmts.addDomain.run(domain); },
+  getAllDomains() { return stmts.getAllDomains.all(); },
+  getActiveDomains() { return stmts.getActiveDomains.all(); },
+  deleteDomain(id) { return stmts.deleteDomain.run(id); },
+  toggleDomain(id) { return stmts.toggleDomain.run(id); },
+  setProxyDomain(id, domain) { return stmts.setProxyDomain.run(domain, id); },
+  getProxyBySubdomainAndDomain(subdomain, domain) { return stmts.getProxyBySubdomainAndDomain.get(subdomain, domain); },
 
   addServer(ip, port, country, label, status) { return stmts.addServer.run(ip, port, country, label || null, status || 'pending'); },
   getAllServers() { return stmts.getAllServers.all(); },

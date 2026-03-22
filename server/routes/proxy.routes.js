@@ -50,6 +50,21 @@ const VALIDITY_OPTIONS = [
 
 router.use(authenticate);
 
+router.get('/domains', (req, res) => {
+  try {
+    const config = require('../config');
+    const active = db.getActiveDomains();
+    const domains = [
+      { domain: config.domain, label: config.domain },
+      ...active.map(d => ({ domain: d.domain, label: d.domain })),
+    ];
+    res.json({ domains });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.get('/countries', (req, res) => {
   const poolCountries = proxyPool.getAvailableCountries();
   const countries = [
@@ -75,7 +90,7 @@ router.get('/', (req, res) => {
 
 router.post('/', (req, res) => {
   try {
-    const { subdomain, target_url, country, validity } = req.body;
+    const { subdomain, target_url, country, validity, proxy_domain } = req.body;
 
     if (!subdomain || !target_url) {
       return res.status(400).json({ error: 'Subdomain and target URL are required' });
@@ -133,9 +148,11 @@ router.post('/', (req, res) => {
     }
 
     const result = db.createProxy(req.user.id, sub, target_url, selectedCountry, expiry.toISOString());
+    const selectedDomain = proxy_domain || require('../config').domain;
+    db.setProxyDomain(result.lastInsertRowid, selectedDomain);
     const proxy = db.getProxyById(result.lastInsertRowid);
 
-    db.addActivityLog(req.user.id, user.username, req.ip, 'Proxy', 'Create', `${sub} -> ${target_url} [${selectedCountry}] [${plan.label}]`);
+    db.addActivityLog(req.user.id, user.username, req.ip, 'Proxy', 'Create', `${sub}.${selectedDomain} -> ${target_url} [${selectedCountry}] [${plan.label}]`);
 
     res.status(201).json({ proxy });
   } catch (err) {

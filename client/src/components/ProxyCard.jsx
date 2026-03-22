@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Globe, ArrowRight, Pause, Play, Trash2, ExternalLink, MapPin, Clock, RefreshCw, Radio } from 'lucide-react';
 
 export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, onRequestStream }) {
-  const proxyUrl = `${proxy.subdomain}.${domain}`;
+  const proxyUrl = `${proxy.subdomain}.${proxy.proxy_domain || domain}`;
   const isExpired = proxy.expires_at && new Date(proxy.expires_at) < new Date();
   const [showRenew, setShowRenew] = useState(false);
   const [renewVal, setRenewVal] = useState('1month');
