@@ -225,6 +225,50 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Pricing */}
+      <section id="pricing" className="relative py-24 md:py-32 border-t border-white/[0.04]">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-100 mb-4">
+              Simple <span className="gradient-text">Pricing</span>
+            </h2>
+            <p className="text-slate-400 max-w-xl mx-auto">
+              1 credit = 1 proxy for 1 month. Buy credits and deploy as many proxies as you need.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {[
+              { period: '1 Month', credits: 1, desc: 'Perfect for trying out the service' },
+              { period: '3 Months', credits: 2, desc: 'Save 33% compared to monthly', popular: false },
+              { period: '6 Months', credits: 4, desc: 'Best value for regular users', popular: true },
+              { period: '12 Months', credits: 6, desc: 'Maximum savings for long term', popular: false },
+            ].map((plan) => (
+              <div key={plan.period} className={`glass rounded-2xl p-6 text-center glass-hover relative ${plan.popular ? 'border-cyan-500/20' : ''}`}>
+                {plan.popular && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-cyan-500 to-blue-500 text-white">
+                    Popular
+                  </div>
+                )}
+                <h3 className="text-lg font-semibold text-slate-100 mt-2 mb-1">{plan.period}</h3>
+                <div className="mb-3">
+                  <span className="text-3xl font-bold gradient-text">{plan.credits}</span>
+                  <span className="text-sm text-slate-500 ml-1">credit{plan.credits > 1 ? 's' : ''}</span>
+                </div>
+                <p className="text-xs text-slate-500 mb-5">{plan.desc}</p>
+                <Link to="/register" className={`w-full inline-flex items-center justify-center py-2.5 rounded-lg text-sm font-medium transition-all ${plan.popular ? 'btn-primary' : 'btn-secondary'}`}>
+                  Get Started
+                </Link>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-center text-sm text-slate-600 mt-8">
+            Contact admin to purchase credits after registration.
+          </p>
+        </div>
+      </section>
+
       {/* FAQ */}
       <section id="faq" className="relative py-24 md:py-32 border-t border-white/[0.04]">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">

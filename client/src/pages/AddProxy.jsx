@@ -1,35 +1,36 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { Globe, ArrowRight, ArrowLeft, Server, CheckCircle2, Calendar, CreditCard, MapPin } from 'lucide-react';
+import { Globe, ArrowRight, ArrowLeft, Server, CheckCircle2, Clock, CreditCard, MapPin } from 'lucide-react';
 
 export default function AddProxy() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ subdomain: '', target_url: '', country: 'auto', expires_at: '' });
+  const [form, setForm] = useState({ subdomain: '', target_url: '', country: 'auto', validity: '1month' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [credits, setCredits] = useState(0);
   const [countries, setCountries] = useState([]);
+  const [validityOptions, setValidityOptions] = useState([]);
 
   const domain = window.location.hostname;
 
   useEffect(() => {
     fetch('/api/auth/me').then(r => r.json()).then(d => setCredits(d.user?.credits || 0)).catch(() => {});
     fetch('/api/proxies/countries').then(r => r.json()).then(d => setCountries(d.countries || [])).catch(() => {});
+    fetch('/api/proxies/validity-options').then(r => r.json()).then(d => setValidityOptions(d.options || [])).catch(() => {});
   }, []);
+
+  const selectedPlan = validityOptions.find(v => v.value === form.validity);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      const body = { subdomain: form.subdomain, target_url: form.target_url, country: form.country };
-      if (form.expires_at) body.expires_at = form.expires_at;
-
       const res = await fetch('/api/proxies', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify(form),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Failed to create proxy'); return; }
@@ -57,7 +58,7 @@ export default function AddProxy() {
             </div>
             <div>
               <p className="text-sm text-slate-300">Available Credits</p>
-              <p className="text-xs text-slate-500">1 credit = 1 proxy</p>
+              <p className="text-xs text-slate-500">Select a plan below</p>
             </div>
           </div>
           <span className="text-2xl font-bold text-amber-400">{credits}</span>
@@ -115,34 +116,44 @@ export default function AddProxy() {
                 </div>
 
                 <div>
-                  <label className="block text-sm text-slate-400 mb-2">Expiration <span className="text-slate-600">(optional)</span></label>
+                  <label className="block text-sm text-slate-400 mb-2">Validity</label>
                   <div className="relative">
-                    <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
-                    <input type="date" className="input-field pl-10" value={form.expires_at}
-                      onChange={(e) => setForm({ ...form, expires_at: e.target.value })}
-                      min={new Date().toISOString().split('T')[0]} />
+                    <Clock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
+                    <select className="input-field pl-10 appearance-none cursor-pointer" value={form.validity}
+                      onChange={(e) => setForm({ ...form, validity: e.target.value })}>
+                      {validityOptions.map(v => (
+                        <option key={v.value} value={v.value} style={{ background: '#0d0d14', color: '#f1f5f9' }}>
+                          {v.label} - {v.credits} credit{v.credits > 1 ? 's' : ''}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </div>
 
-              {form.subdomain && form.target_url && (
-                <div className="rounded-xl bg-white/[0.02] border border-white/[0.04] p-4">
-                  <p className="text-xs text-slate-500 mb-3 uppercase tracking-wider font-medium">Route Preview</p>
+              {/* Plan Summary */}
+              {form.subdomain && form.target_url && selectedPlan && (
+                <div className="rounded-xl bg-white/[0.02] border border-white/[0.04] p-4 space-y-3">
+                  <p className="text-xs text-slate-500 uppercase tracking-wider font-medium">Summary</p>
                   <div className="flex items-center gap-3 text-sm">
                     <span className="font-mono text-cyan-400 truncate">{form.subdomain}.{domain}</span>
                     <ArrowRight className="w-4 h-4 text-slate-600 flex-shrink-0" />
                     <span className="font-mono text-slate-400 truncate">{form.target_url}</span>
                   </div>
-                  <div className="flex items-center gap-4 mt-2 text-xs text-slate-600">
+                  <div className="flex items-center gap-4 text-xs text-slate-600">
                     <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {countries.find(c => c.code === form.country)?.name || form.country}</span>
-                    {form.expires_at && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {new Date(form.expires_at).toLocaleDateString()}</span>}
+                    <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {selectedPlan.label}</span>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-white/[0.04]">
+                    <span className="text-sm text-slate-400">Cost</span>
+                    <span className="text-lg font-bold text-amber-400">{selectedPlan.credits} credit{selectedPlan.credits > 1 ? 's' : ''}</span>
                   </div>
                 </div>
               )}
 
               <button type="submit" disabled={loading} className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50">
                 {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  : <><Globe className="w-4 h-4" /> Deploy Proxy (1 Credit)</>}
+                  : <><Globe className="w-4 h-4" /> Deploy Proxy ({selectedPlan?.credits || 1} Credit{(selectedPlan?.credits || 1) > 1 ? 's' : ''})</>}
               </button>
             </form>
           </div>

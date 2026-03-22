@@ -12,10 +12,21 @@ const RESERVED = new Set([
 
 const VALID_COUNTRIES = new Set(db.COUNTRIES.map(c => c.code));
 
+const VALIDITY_OPTIONS = [
+  { value: '1month', label: '1 Month', days: 30, credits: 1 },
+  { value: '3months', label: '3 Months', days: 90, credits: 2 },
+  { value: '6months', label: '6 Months', days: 180, credits: 4 },
+  { value: '12months', label: '12 Months', days: 365, credits: 6 },
+];
+
 router.use(authenticate);
 
 router.get('/countries', (req, res) => {
   res.json({ countries: db.COUNTRIES });
+});
+
+router.get('/validity-options', (req, res) => {
+  res.json({ options: VALIDITY_OPTIONS });
 });
 
 router.get('/', (req, res) => {
@@ -30,17 +41,26 @@ router.get('/', (req, res) => {
 
 router.post('/', (req, res) => {
   try {
-    const { subdomain, target_url, country, expires_at } = req.body;
+    const { subdomain, target_url, country, validity } = req.body;
 
     if (!subdomain || !target_url) {
       return res.status(400).json({ error: 'Subdomain and target URL are required' });
     }
 
+    if (!validity) {
+      return res.status(400).json({ error: 'Validity period is required' });
+    }
+
+    const plan = VALIDITY_OPTIONS.find(v => v.value === validity);
+    if (!plan) {
+      return res.status(400).json({ error: 'Invalid validity option' });
+    }
+
     const user = db.getUserById(req.user.id);
     if (!user) return res.status(401).json({ error: 'User not found' });
 
-    if (user.credits < 1 && !user.is_admin) {
-      return res.status(403).json({ error: 'Insufficient credits. You need at least 1 credit to create a proxy.' });
+    if (!user.is_admin && user.credits < plan.credits) {
+      return res.status(403).json({ error: `Insufficient credits. ${plan.label} requires ${plan.credits} credit${plan.credits > 1 ? 's' : ''}.` });
     }
 
     const sub = subdomain.toLowerCase().trim();
@@ -67,25 +87,21 @@ router.post('/', (req, res) => {
 
     const selectedCountry = (country && VALID_COUNTRIES.has(country)) ? country : 'auto';
 
-    let expiry = null;
-    if (expires_at) {
-      const d = new Date(expires_at);
-      if (isNaN(d.getTime()) || d <= new Date()) {
-        return res.status(400).json({ error: 'Expiration date must be in the future' });
-      }
-      expiry = d.toISOString();
-    }
+    const expiry = new Date();
+    expiry.setDate(expiry.getDate() + plan.days);
 
     if (!user.is_admin) {
-      db.deductCredit(req.user.id);
+      for (let i = 0; i < plan.credits; i++) {
+        db.deductCredit(req.user.id);
+      }
       const after = db.getUserById(req.user.id);
-      db.addCreditHistory(req.user.id, user.username, -1, after.credits, 'proxy_created', `Created proxy: ${sub}`);
+      db.addCreditHistory(req.user.id, user.username, -plan.credits, after.credits, 'proxy_created', `${sub} (${plan.label})`);
     }
 
-    const result = db.createProxy(req.user.id, sub, target_url, selectedCountry, expiry);
+    const result = db.createProxy(req.user.id, sub, target_url, selectedCountry, expiry.toISOString());
     const proxy = db.getProxyById(result.lastInsertRowid);
 
-    db.addActivityLog(req.user.id, user.username, req.ip, 'Proxy', 'Create', `${sub} -> ${target_url} [${selectedCountry}]`);
+    db.addActivityLog(req.user.id, user.username, req.ip, 'Proxy', 'Create', `${sub} -> ${target_url} [${selectedCountry}] [${plan.label}]`);
 
     res.status(201).json({ proxy });
   } catch (err) {

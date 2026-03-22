@@ -31,6 +31,9 @@ export default function Navbar() {
                 <a href="#how-it-works" className="px-4 py-2 text-sm text-slate-400 hover:text-slate-100 transition-colors rounded-lg hover:bg-white/[0.03]">
                   How It Works
                 </a>
+                <a href="#pricing" className="px-4 py-2 text-sm text-slate-400 hover:text-slate-100 transition-colors rounded-lg hover:bg-white/[0.03]">
+                  Pricing
+                </a>
                 <a href="#faq" className="px-4 py-2 text-sm text-slate-400 hover:text-slate-100 transition-colors rounded-lg hover:bg-white/[0.03]">
                   FAQ
                 </a>
@@ -86,6 +89,7 @@ export default function Navbar() {
               <>
                 <a href="#features" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-400 hover:text-slate-100 rounded-lg hover:bg-white/[0.03]">Features</a>
                 <a href="#how-it-works" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-400 hover:text-slate-100 rounded-lg hover:bg-white/[0.03]">How It Works</a>
+                <a href="#pricing" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-400 hover:text-slate-100 rounded-lg hover:bg-white/[0.03]">Pricing</a>
                 <a href="#faq" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-400 hover:text-slate-100 rounded-lg hover:bg-white/[0.03]">FAQ</a>
               </>
             )}
