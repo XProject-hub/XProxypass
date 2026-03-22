@@ -137,7 +137,7 @@ const stmts = {
 
   addServer: db.prepare('INSERT INTO proxy_servers (ip, port, country, label, status) VALUES (?, ?, ?, ?, ?)'),
   getAllServers: db.prepare('SELECT * FROM proxy_servers ORDER BY created_at DESC'),
-  getServersByCountry: db.prepare('SELECT * FROM proxy_servers WHERE country = ? AND status = "online"'),
+  getServersByCountry: db.prepare("SELECT * FROM proxy_servers WHERE country = ? AND status = 'online'"),
   getServerById: db.prepare('SELECT * FROM proxy_servers WHERE id = ?'),
   updateServerStatus: db.prepare('UPDATE proxy_servers SET status = ?, last_check = CURRENT_TIMESTAMP WHERE id = ?'),
   deleteServer: db.prepare('DELETE FROM proxy_servers WHERE id = ?'),
