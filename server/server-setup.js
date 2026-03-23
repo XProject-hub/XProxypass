@@ -88,22 +88,39 @@ function setupServer(ip, port, username, password) {
 
 function checkServer(ip, proxyPort) {
   return new Promise((resolve) => {
-    const http = require('http');
-    const req = http.get({
-      hostname: ip,
-      port: proxyPort || 3128,
-      path: '/',
-      timeout: 10000,
-    }, (res) => {
-      res.resume();
-      resolve(true);
-    });
-    req.on('error', () => resolve(true));
-    req.on('timeout', () => { req.destroy(); resolve(false); });
-    req.on('socket', (socket) => {
-      socket.on('connect', () => resolve(true));
-    });
-    setTimeout(() => { req.destroy(); resolve(false); }, 12000);
+    const net = require('net');
+    let attempts = 0;
+    const maxAttempts = 2;
+
+    function tryConnect() {
+      const socket = new net.Socket();
+      socket.setTimeout(8000);
+      socket.on('connect', () => {
+        socket.destroy();
+        resolve(true);
+      });
+      socket.on('timeout', () => {
+        socket.destroy();
+        attempts++;
+        if (attempts < maxAttempts) {
+          setTimeout(tryConnect, 1000);
+        } else {
+          resolve(false);
+        }
+      });
+      socket.on('error', () => {
+        socket.destroy();
+        attempts++;
+        if (attempts < maxAttempts) {
+          setTimeout(tryConnect, 1000);
+        } else {
+          resolve(false);
+        }
+      });
+      socket.connect(proxyPort || 3128, ip);
+    }
+
+    tryConnect();
   });
 }
 

@@ -26,6 +26,26 @@ require('events').EventEmitter.defaultMaxListeners = 0;
 
 proxyPool.init();
 
+const { checkServer } = require('./server-setup');
+async function autoHealthCheck() {
+  try {
+    const servers = db.getAllServers();
+    for (const server of servers) {
+      if (server.status === 'installing') continue;
+      const alive = await checkServer(server.ip, server.port);
+      const newStatus = alive ? 'online' : 'offline';
+      if (server.status !== newStatus) {
+        db.updateServerStatus(server.id, newStatus);
+        console.log(`[HealthCheck] ${server.ip} (${server.country}): ${server.status} -> ${newStatus}`);
+      }
+    }
+  } catch (err) {
+    console.error('[HealthCheck] Error:', err.message);
+  }
+}
+setTimeout(autoHealthCheck, 10000);
+setInterval(autoHealthCheck, 3 * 60 * 1000);
+
 const ERROR_PAGE = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Backend Unavailable - ProxyXPass</title>
