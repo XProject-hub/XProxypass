@@ -346,10 +346,15 @@ app.use((req, res, next) => {
       delete newHeaders['etag'];
       delete newHeaders['last-modified'];
 
+      const reqPath = (req.url || '').toLowerCase();
+      const isM3URequest = reqPath.includes('get.php') || reqPath.includes('.m3u') || reqPath.includes('player_api') ||
+        reqPath.includes('xmltv') || reqPath.includes('epg');
+
       const isRewritable = contentType.includes('text') || contentType.includes('json') ||
         contentType.includes('mpegurl') || contentType.includes('x-mpegURL') ||
         contentType.includes('xml') || contentType.includes('vnd.apple') ||
-        contentType.includes('javascript');
+        contentType.includes('javascript') ||
+        (record.stream_proxy === 2 && contentType.includes('octet-stream') && isM3URequest);
 
       function decompress(buffer, encoding) {
         try {
