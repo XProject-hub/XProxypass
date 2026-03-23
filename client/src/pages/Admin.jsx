@@ -64,6 +64,15 @@ export default function Admin() {
     return () => clearInterval(interval);
   }, [tab]);
 
+  useEffect(() => {
+    if (tab !== 'servers' || servers.length === 0) return;
+    servers.forEach(s => {
+      fetch(`/api/admin/servers/${s.id}/uptime`).then(r => r.json()).then(d => {
+        setServerUptimes(prev => ({ ...prev, [s.id]: d }));
+      }).catch(() => {});
+    });
+  }, [tab, servers.length]);
+
   const loadData = async () => {
     try {
       const [uRes, pRes, sRes, chRes, alRes, svRes] = await Promise.all([
@@ -231,6 +240,7 @@ export default function Admin() {
   };
 
   const [serverAction, setServerAction] = useState(null);
+  const [serverUptimes, setServerUptimes] = useState({});
 
   const serverCommand = async (id, action, confirmMsg) => {
     if (confirmMsg && !confirm(confirmMsg)) return;
@@ -707,7 +717,7 @@ export default function Admin() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-white/[0.06]">
-                        {['IP', 'Country', 'Label', 'Usage', 'Max', 'BW', 'Status', ''].map(h => (
+                        {['IP', 'Country', 'Label', 'Usage', 'Max', 'Uptime', 'Status', ''].map(h => (
                           <th key={h} className="text-left px-3 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
@@ -757,7 +767,14 @@ export default function Admin() {
                               </button>
                             </div>
                           </td>
-                          <td className="px-3 py-3 text-slate-400 text-xs">{s.bandwidth_limit || '1Gbps'}</td>
+                          <td className="px-3 py-3 text-xs">
+                            {serverUptimes[s.id] ? (
+                              <div>
+                                <p className="text-slate-400">{serverUptimes[s.id].server_uptime}</p>
+                                <p className="text-[10px] text-slate-600">Squid: {serverUptimes[s.id].squid_uptime}</p>
+                              </div>
+                            ) : <span className="text-slate-600">loading...</span>}
+                          </td>
                           <td className="px-3 py-3">
                             <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
                               s.status === 'online' ? 'text-emerald-400 bg-emerald-500/10' :

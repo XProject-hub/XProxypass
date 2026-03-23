@@ -304,6 +304,33 @@ router.patch('/servers/:id', (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
+router.get('/servers/:id/uptime', async (req, res) => {
+  try {
+    const server = db.getServerById(req.params.id);
+    if (!server) return res.status(404).json({ error: 'Server not found' });
+    if (!server.ssh_pass) return res.json({ server_uptime: 'N/A', squid_uptime: 'N/A', error: 'No SSH credentials' });
+
+    const output = await sshCommand(server, "echo \"SERVER:$(uptime -p)\" && echo \"SQUID:$(systemctl show squid --property=ActiveEnterTimestamp --value)\"");
+    const lines = output.split('\n');
+    let serverUptime = 'N/A', squidUptime = 'N/A';
+    for (const line of lines) {
+      if (line.startsWith('SERVER:')) serverUptime = line.replace('SERVER:', '').trim();
+      if (line.startsWith('SQUID:')) {
+        const ts = line.replace('SQUID:', '').trim();
+        if (ts) {
+          const diff = Date.now() - new Date(ts).getTime();
+          const hours = Math.floor(diff / 3600000);
+          const mins = Math.floor((diff % 3600000) / 60000);
+          squidUptime = hours > 24 ? `${Math.floor(hours/24)}d ${hours%24}h` : `${hours}h ${mins}m`;
+        }
+      }
+    }
+    res.json({ server_uptime: serverUptime, squid_uptime: squidUptime });
+  } catch (err) {
+    res.json({ server_uptime: 'Error', squid_uptime: 'Error', error: err.message });
+  }
+});
+
 router.post('/servers/:id/max-connections', (req, res) => {
   try {
     const { max } = req.body;
