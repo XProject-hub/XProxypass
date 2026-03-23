@@ -369,7 +369,7 @@ function sshCommand(server, command) {
   return new Promise((resolve, reject) => {
     if (!server.ssh_pass) return reject(new Error('No SSH credentials stored'));
     const conn = new Client();
-    const timeout = setTimeout(() => { conn.end(); reject(new Error('Timeout')); }, 30000);
+    const timeout = setTimeout(() => { conn.end(); reject(new Error('Timeout')); }, 60000);
     conn.on('ready', () => {
       conn.exec(command, (err, stream) => {
         if (err) { clearTimeout(timeout); conn.end(); reject(err); return; }
@@ -401,7 +401,7 @@ router.post('/servers/:id/stop', async (req, res) => {
   try {
     const server = db.getServerById(req.params.id);
     if (!server) return res.status(404).json({ error: 'Server not found' });
-    const output = await sshCommand(server, 'systemctl stop squid');
+    const output = await sshCommand(server, 'systemctl kill squid; systemctl stop squid 2>/dev/null; echo stopped');
     db.updateServerStatus(server.id, 'offline');
     db.addActivityLog(req.user.id, req.user.username, req.ip, 'Server', 'Stop', `${server.ip}: Squid stopped`);
     res.json({ message: 'Squid stopped', output });
@@ -414,7 +414,7 @@ router.post('/servers/:id/restart', async (req, res) => {
   try {
     const server = db.getServerById(req.params.id);
     if (!server) return res.status(404).json({ error: 'Server not found' });
-    const output = await sshCommand(server, 'systemctl restart squid && sleep 2 && systemctl status squid --no-pager -l | head -5');
+    const output = await sshCommand(server, 'systemctl kill squid 2>/dev/null; systemctl start squid && echo restarted');
     db.updateServerStatus(server.id, 'online');
     db.addActivityLog(req.user.id, req.user.username, req.ip, 'Server', 'Restart', `${server.ip}: Squid restarted`);
     res.json({ message: 'Squid restarted', output });
