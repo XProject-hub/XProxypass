@@ -66,11 +66,16 @@ export default function Admin() {
 
   useEffect(() => {
     if (tab !== 'servers' || servers.length === 0) return;
-    servers.forEach(s => {
-      fetch(`/api/admin/servers/${s.id}/uptime`).then(r => r.json()).then(d => {
-        setServerUptimes(prev => ({ ...prev, [s.id]: d }));
-      }).catch(() => {});
-    });
+    const fetchUptimes = () => {
+      servers.forEach(s => {
+        fetch(`/api/admin/servers/${s.id}/uptime`).then(r => r.json()).then(d => {
+          setServerUptimes(prev => ({ ...prev, [s.id]: d }));
+        }).catch(() => {});
+      });
+    };
+    fetchUptimes();
+    const interval = setInterval(fetchUptimes, 10000);
+    return () => clearInterval(interval);
   }, [tab, servers.length]);
 
   const loadData = async () => {
