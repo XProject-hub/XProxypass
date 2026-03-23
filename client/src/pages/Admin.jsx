@@ -769,11 +769,16 @@ export default function Admin() {
                           </td>
                           <td className="px-3 py-3 text-xs">
                             {serverUptimes[s.id] ? (
-                              <div>
-                                <p className="text-slate-400">{serverUptimes[s.id].server_uptime}</p>
+                              <div className="space-y-0.5">
+                                <p className="text-slate-400 text-[10px]">{serverUptimes[s.id].server_uptime}</p>
                                 <p className="text-[10px] text-slate-600">Squid: {serverUptimes[s.id].squid_uptime}</p>
+                                <div className="flex items-center gap-2 text-[10px]">
+                                  <span className="text-cyan-400">CPU {serverUptimes[s.id].cpu}</span>
+                                  <span className="text-amber-400">RAM {serverUptimes[s.id].ram}</span>
+                                  <span className="text-slate-500">Disk {serverUptimes[s.id].disk}</span>
+                                </div>
                               </div>
-                            ) : <span className="text-slate-600">loading...</span>}
+                            ) : <span className="text-slate-600 text-[10px]">loading...</span>}
                           </td>
                           <td className="px-3 py-3">
                             <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${

@@ -310,11 +310,21 @@ router.get('/servers/:id/uptime', async (req, res) => {
     if (!server) return res.status(404).json({ error: 'Server not found' });
     if (!server.ssh_pass) return res.json({ server_uptime: 'N/A', squid_uptime: 'N/A', error: 'No SSH credentials' });
 
-    const output = await sshCommand(server, "echo \"SERVER:$(uptime -p)\" && echo \"SQUID:$(systemctl show squid --property=ActiveEnterTimestamp --value)\"");
+    const cmd = [
+      "echo \"SERVER:$(uptime -p)\"",
+      "echo \"SQUID:$(systemctl show squid --property=ActiveEnterTimestamp --value)\"",
+      "echo \"CPU:$(top -bn1 | grep 'Cpu(s)' | awk '{print $2}')\"",
+      "echo \"RAM:$(free -m | awk '/Mem:/{printf \"%d/%d\", $3, $2}')\"",
+      "echo \"DISK:$(df -h / | awk 'NR==2{printf \"%s/%s\", $3, $2}')\""
+    ].join(' && ');
+    const output = await sshCommand(server, cmd);
     const lines = output.split('\n');
-    let serverUptime = 'N/A', squidUptime = 'N/A';
+    let serverUptime = 'N/A', squidUptime = 'N/A', cpu = 'N/A', ram = 'N/A', disk = 'N/A';
     for (const line of lines) {
       if (line.startsWith('SERVER:')) serverUptime = line.replace('SERVER:', '').trim();
+      if (line.startsWith('CPU:')) cpu = line.replace('CPU:', '').trim() + '%';
+      if (line.startsWith('RAM:')) ram = line.replace('RAM:', '').trim() + ' MB';
+      if (line.startsWith('DISK:')) disk = line.replace('DISK:', '').trim();
       if (line.startsWith('SQUID:')) {
         const ts = line.replace('SQUID:', '').trim();
         if (ts) {
@@ -325,7 +335,7 @@ router.get('/servers/:id/uptime', async (req, res) => {
         }
       }
     }
-    res.json({ server_uptime: serverUptime, squid_uptime: squidUptime });
+    res.json({ server_uptime: serverUptime, squid_uptime: squidUptime, cpu, ram, disk });
   } catch (err) {
     res.json({ server_uptime: 'Error', squid_uptime: 'Error', error: err.message });
   }
