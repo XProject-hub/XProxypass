@@ -356,17 +356,30 @@ app.use((req, res, next) => {
         });
       } else {
         res.writeHead(proxyRes.statusCode, newHeaders);
-        let totalBytes = 0;
+        let pendingBytes = 0;
+        const flushInterval = setInterval(() => {
+          if (pendingBytes > 0) {
+            try { db.addBandwidth(pendingBytes, record.id); } catch {}
+            pendingBytes = 0;
+          }
+        }, 5000);
         proxyRes.on('data', chunk => {
           res.write(chunk);
-          totalBytes += chunk.length;
+          pendingBytes += chunk.length;
           if (!bandwidthPerSecond[record.id]) bandwidthPerSecond[record.id] = 0;
           bandwidthPerSecond[record.id] += chunk.length;
         });
         proxyRes.on('end', () => {
+          clearInterval(flushInterval);
           res.end();
-          if (totalBytes > 0) {
-            try { db.addBandwidth(totalBytes, record.id); } catch {}
+          if (pendingBytes > 0) {
+            try { db.addBandwidth(pendingBytes, record.id); } catch {}
+          }
+        });
+        res.on('close', () => {
+          clearInterval(flushInterval);
+          if (pendingBytes > 0) {
+            try { db.addBandwidth(pendingBytes, record.id); } catch {}
           }
         });
       }
