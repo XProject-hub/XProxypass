@@ -303,16 +303,21 @@ app.use((req, res, next) => {
         return str;
       }
 
+      const SKIP_REWRITE_DOMAINS = /\.(png|jpg|jpeg|gif|svg|ico|webp|bmp|css|woff|woff2|ttf|eot)$/i;
+      const SKIP_REWRITE_HOSTS = /m3uassets\.com|imgur\.com|googleusercontent\.com|cloudinary\.com|wp\.com|githubusercontent\.com|cdn\./i;
+
       function rewriteAllExternalUrls(str) {
         if (!str) return str;
         str = rewriteUrl(str);
         if (record.stream_proxy === 2) {
-          str = str.replace(/https?:\/\/[a-zA-Z0-9.-]+(?::\d+)?/g, (match) => {
+          str = str.replace(/https?:\/\/[a-zA-Z0-9.-]+(?::\d+)?(?:\/[^\s"'<>)]*)?/g, (match) => {
             try {
+              if (SKIP_REWRITE_DOMAINS.test(match)) return match;
               const u = new URL(match);
               if (u.host === proxyHost) return match;
               if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return match;
-              return `https://${proxyHost}`;
+              if (SKIP_REWRITE_HOSTS.test(u.hostname)) return match;
+              return match.replace(`${u.protocol}//${u.host}`, `https://${proxyHost}`);
             } catch { return match; }
           });
         }
