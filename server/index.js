@@ -292,13 +292,14 @@ app.use((req, res, next) => {
       function rewriteUrl(str) {
         if (!str) return str;
         if (targetHost) {
-          str = str.replace(new RegExp(`https?://www\\.${escHost}`, 'g'), `https://${proxyHost}`);
-          str = str.replace(new RegExp(escOrigin, 'g'), `https://${proxyHost}`);
-          str = str.replace(new RegExp(`http://${escHost}`, 'g'), `https://${proxyHost}`);
-          str = str.replace(new RegExp(`www\\.${escHost}`, 'g'), proxyHost);
-          str = str.replace(new RegExp(escHost, 'g'), proxyHost);
+          str = str.split(`https://www.${targetHost}`).join(`https://${proxyHost}`);
+          str = str.split(`http://www.${targetHost}`).join(`https://${proxyHost}`);
+          str = str.split(targetOrigin).join(`https://${proxyHost}`);
+          str = str.split(`http://${targetHost}`).join(`https://${proxyHost}`);
+          str = str.split(`www.${targetHost}`).join(proxyHost);
+          str = str.split(targetHost).join(proxyHost);
         }
-        str = str.replace(new RegExp(`www\\.${proxyHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g'), proxyHost);
+        str = str.split(`www.${proxyHost}`).join(proxyHost);
         return str;
       }
 
