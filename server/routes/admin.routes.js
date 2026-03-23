@@ -262,6 +262,7 @@ router.post('/servers', async (req, res) => {
     if (max_connections) {
       db.updateServerMaxConn(result.lastInsertRowid, parseInt(max_connections) || 100);
     }
+    db.updateServerSSH(result.lastInsertRowid, ssh_port || 22, username || 'root', password);
     const server = db.getServerById(result.lastInsertRowid);
 
     db.addActivityLog(req.user.id, req.user.username, req.ip, 'Server', 'AddStart', `${ip} (${country})`);
@@ -305,6 +306,78 @@ router.post('/servers/:id/check', async (req, res) => {
 
     res.json({ server: { ...server, status, last_check: new Date().toISOString() } });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
+function sshCommand(server, command) {
+  const { Client } = require('ssh2');
+  return new Promise((resolve, reject) => {
+    if (!server.ssh_pass) return reject(new Error('No SSH credentials stored'));
+    const conn = new Client();
+    const timeout = setTimeout(() => { conn.end(); reject(new Error('Timeout')); }, 30000);
+    conn.on('ready', () => {
+      conn.exec(command, (err, stream) => {
+        if (err) { clearTimeout(timeout); conn.end(); reject(err); return; }
+        let out = '';
+        stream.on('data', d => out += d);
+        stream.stderr.on('data', d => out += d);
+        stream.on('close', () => { clearTimeout(timeout); conn.end(); resolve(out.trim()); });
+      });
+    });
+    conn.on('error', (err) => { clearTimeout(timeout); reject(err); });
+    conn.connect({ host: server.ip, port: server.ssh_port || 22, username: server.ssh_user || 'root', password: server.ssh_pass, readyTimeout: 15000 });
+  });
+}
+
+router.post('/servers/:id/start', async (req, res) => {
+  try {
+    const server = db.getServerById(req.params.id);
+    if (!server) return res.status(404).json({ error: 'Server not found' });
+    const output = await sshCommand(server, 'systemctl start squid && systemctl status squid --no-pager -l | head -5');
+    db.updateServerStatus(server.id, 'online');
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Server', 'Start', `${server.ip}: Squid started`);
+    res.json({ message: 'Squid started', output });
+  } catch (err) {
+    res.status(500).json({ error: `Start failed: ${err.message}` });
+  }
+});
+
+router.post('/servers/:id/stop', async (req, res) => {
+  try {
+    const server = db.getServerById(req.params.id);
+    if (!server) return res.status(404).json({ error: 'Server not found' });
+    const output = await sshCommand(server, 'systemctl stop squid');
+    db.updateServerStatus(server.id, 'offline');
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Server', 'Stop', `${server.ip}: Squid stopped`);
+    res.json({ message: 'Squid stopped', output });
+  } catch (err) {
+    res.status(500).json({ error: `Stop failed: ${err.message}` });
+  }
+});
+
+router.post('/servers/:id/restart', async (req, res) => {
+  try {
+    const server = db.getServerById(req.params.id);
+    if (!server) return res.status(404).json({ error: 'Server not found' });
+    const output = await sshCommand(server, 'systemctl restart squid && sleep 2 && systemctl status squid --no-pager -l | head -5');
+    db.updateServerStatus(server.id, 'online');
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Server', 'Restart', `${server.ip}: Squid restarted`);
+    res.json({ message: 'Squid restarted', output });
+  } catch (err) {
+    res.status(500).json({ error: `Restart failed: ${err.message}` });
+  }
+});
+
+router.post('/servers/:id/reboot', async (req, res) => {
+  try {
+    const server = db.getServerById(req.params.id);
+    if (!server) return res.status(404).json({ error: 'Server not found' });
+    await sshCommand(server, 'reboot &');
+    db.updateServerStatus(server.id, 'offline');
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Server', 'Reboot', `${server.ip}: Server rebooting`);
+    res.json({ message: 'Server rebooting. Will come back online in ~60 seconds.' });
+  } catch (err) {
+    res.status(500).json({ error: `Reboot failed: ${err.message}` });
+  }
 });
 
 router.delete('/servers/:id', (req, res) => {

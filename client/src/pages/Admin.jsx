@@ -4,7 +4,8 @@ import Navbar from '../components/Navbar';
 import {
   Users, Globe, Activity, Trash2, Shield, ShieldOff, UserPlus,
   Plus, Loader2, ArrowLeft, CreditCard, ScrollText,
-  LayoutList, Clock, MapPin, Server, RefreshCw, Wifi, WifiOff, CheckCircle2
+  LayoutList, Clock, MapPin, Server, RefreshCw, Wifi, WifiOff, CheckCircle2,
+  Play, Square, RotateCcw, Power
 } from 'lucide-react';
 
 import { Radio, Link2 } from 'lucide-react';
@@ -225,6 +226,27 @@ export default function Admin() {
     } else {
       const data = await res.json();
       alert(data.error || 'Failed to create user');
+    }
+  };
+
+  const [serverAction, setServerAction] = useState(null);
+
+  const serverCommand = async (id, action, confirmMsg) => {
+    if (confirmMsg && !confirm(confirmMsg)) return;
+    setServerAction(`${id}-${action}`);
+    try {
+      const res = await fetch(`/api/admin/servers/${id}/${action}`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(data.message, 'success');
+      } else {
+        showToast(data.error || `${action} failed`, 'error');
+      }
+      loadData();
+    } catch {
+      showToast(`${action} request failed`, 'error');
+    } finally {
+      setServerAction(null);
     }
   };
 
@@ -724,7 +746,24 @@ export default function Admin() {
                           </td>
                           <td className="px-3 py-3">
                             <div className="flex items-center justify-end gap-1">
-                              <button onClick={() => checkServerHealth(s.id)} disabled={checkingServer === s.id} className="p-1.5 rounded-lg hover:bg-cyan-500/10 text-slate-600 hover:text-cyan-400 transition-all" title="Health Check">
+                              <button onClick={() => serverCommand(s.id, 'start')} disabled={serverAction === `${s.id}-start`}
+                                className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-slate-600 hover:text-emerald-400 transition-all" title="Start Squid">
+                                {serverAction === `${s.id}-start` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                              </button>
+                              <button onClick={() => serverCommand(s.id, 'stop', 'Stop Squid on this server?')} disabled={serverAction === `${s.id}-stop`}
+                                className="p-1.5 rounded-lg hover:bg-amber-500/10 text-slate-600 hover:text-amber-400 transition-all" title="Stop Squid">
+                                {serverAction === `${s.id}-stop` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Square className="w-3.5 h-3.5" />}
+                              </button>
+                              <button onClick={() => serverCommand(s.id, 'restart')} disabled={serverAction === `${s.id}-restart`}
+                                className="p-1.5 rounded-lg hover:bg-cyan-500/10 text-slate-600 hover:text-cyan-400 transition-all" title="Restart Squid">
+                                {serverAction === `${s.id}-restart` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                              </button>
+                              <button onClick={() => serverCommand(s.id, 'reboot', 'REBOOT entire server? This will disconnect all active streams.')} disabled={serverAction === `${s.id}-reboot`}
+                                className="p-1.5 rounded-lg hover:bg-orange-500/10 text-slate-600 hover:text-orange-400 transition-all" title="Reboot Server">
+                                {serverAction === `${s.id}-reboot` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Power className="w-3.5 h-3.5" />}
+                              </button>
+                              <button onClick={() => checkServerHealth(s.id)} disabled={checkingServer === s.id}
+                                className="p-1.5 rounded-lg hover:bg-blue-500/10 text-slate-600 hover:text-blue-400 transition-all" title="Health Check">
                                 {checkingServer === s.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                               </button>
                               <button onClick={() => deleteServerItem(s.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-slate-600 hover:text-red-400 transition-all" title="Delete">

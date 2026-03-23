@@ -78,6 +78,9 @@ db.exec(`
     label TEXT,
     max_connections INTEGER DEFAULT 100,
     bandwidth_limit TEXT DEFAULT '1Gbps',
+    ssh_port INTEGER DEFAULT 22,
+    ssh_user TEXT DEFAULT 'root',
+    ssh_pass TEXT,
     status TEXT DEFAULT 'pending',
     last_check DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -108,6 +111,9 @@ try { db.exec('ALTER TABLE proxies ADD COLUMN bandwidth_limit INTEGER DEFAULT 0'
 try { db.exec('ALTER TABLE proxies ADD COLUMN proxy_domain TEXT'); } catch {}
 try { db.exec('ALTER TABLE proxy_servers ADD COLUMN max_connections INTEGER DEFAULT 100'); } catch {}
 try { db.exec("ALTER TABLE proxy_servers ADD COLUMN bandwidth_limit TEXT DEFAULT '1Gbps'"); } catch {}
+try { db.exec('ALTER TABLE proxy_servers ADD COLUMN ssh_port INTEGER DEFAULT 22'); } catch {}
+try { db.exec("ALTER TABLE proxy_servers ADD COLUMN ssh_user TEXT DEFAULT 'root'"); } catch {}
+try { db.exec('ALTER TABLE proxy_servers ADD COLUMN ssh_pass TEXT'); } catch {}
 
 const COUNTRIES = [
   { code: 'auto', name: 'Auto (Nearest)' },
@@ -186,6 +192,7 @@ const stmts = {
   getServerById: db.prepare('SELECT * FROM proxy_servers WHERE id = ?'),
   updateServerStatus: db.prepare('UPDATE proxy_servers SET status = ?, last_check = CURRENT_TIMESTAMP WHERE id = ?'),
   updateServerMaxConn: db.prepare('UPDATE proxy_servers SET max_connections = ? WHERE id = ?'),
+  updateServerSSH: db.prepare('UPDATE proxy_servers SET ssh_port = ?, ssh_user = ?, ssh_pass = ? WHERE id = ?'),
   deleteServer: db.prepare('DELETE FROM proxy_servers WHERE id = ?'),
 
   getUserStats: db.prepare(`
@@ -267,6 +274,7 @@ module.exports = {
   getServerById(id) { return stmts.getServerById.get(id); },
   updateServerStatus(id, status) { return stmts.updateServerStatus.run(status, id); },
   updateServerMaxConn(id, max) { return stmts.updateServerMaxConn.run(max, id); },
+  updateServerSSH(id, sshPort, sshUser, sshPass) { return stmts.updateServerSSH.run(sshPort, sshUser, sshPass, id); },
   deleteServer(id) { return stmts.deleteServer.run(id); },
   getActivityLogs() { return stmts.getActivityLogs.all(); },
 
