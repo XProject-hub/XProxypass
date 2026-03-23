@@ -90,7 +90,7 @@ function checkServer(ip, proxyPort) {
   return new Promise((resolve) => {
     const net = require('net');
     const socket = new net.Socket();
-    socket.setTimeout(5000);
+    socket.setTimeout(15000);
     socket.on('connect', () => { socket.destroy(); resolve(true); });
     socket.on('timeout', () => { socket.destroy(); resolve(false); });
     socket.on('error', () => { socket.destroy(); resolve(false); });

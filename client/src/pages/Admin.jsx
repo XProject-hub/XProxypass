@@ -145,9 +145,22 @@ export default function Admin() {
     finally { setServerInstalling(false); }
   };
 
+  const [checkingServer, setCheckingServer] = useState(null);
+
   const checkServerHealth = async (id) => {
-    const res = await fetch(`/api/admin/servers/${id}/check`, { method: 'POST' });
-    if (res.ok) loadData();
+    setCheckingServer(id);
+    try {
+      const res = await fetch(`/api/admin/servers/${id}/check`, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        alert(`Health Check: ${data.server.status.toUpperCase()}`);
+        loadData();
+      }
+    } catch {
+      alert('Health check failed');
+    } finally {
+      setCheckingServer(null);
+    }
   };
 
   const approveStream = async (id) => {
@@ -701,8 +714,8 @@ export default function Admin() {
                           </td>
                           <td className="px-3 py-3">
                             <div className="flex items-center justify-end gap-1">
-                              <button onClick={() => checkServerHealth(s.id)} className="p-1.5 rounded-lg hover:bg-cyan-500/10 text-slate-600 hover:text-cyan-400 transition-all" title="Health Check">
-                                <RefreshCw className="w-3.5 h-3.5" />
+                              <button onClick={() => checkServerHealth(s.id)} disabled={checkingServer === s.id} className="p-1.5 rounded-lg hover:bg-cyan-500/10 text-slate-600 hover:text-cyan-400 transition-all" title="Health Check">
+                                {checkingServer === s.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                               </button>
                               <button onClick={() => deleteServerItem(s.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-slate-600 hover:text-red-400 transition-all" title="Delete">
                                 <Trash2 className="w-3.5 h-3.5" />
