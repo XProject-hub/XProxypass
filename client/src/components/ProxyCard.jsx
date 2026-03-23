@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Globe, ArrowRight, Pause, Play, Trash2, ExternalLink, MapPin, Clock, RefreshCw, Radio, Edit3, Check, X } from 'lucide-react';
 
 export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, onRequestStream, onEdit }) {
@@ -12,6 +12,18 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, 
   const [editTarget, setEditTarget] = useState(proxy.target_url);
   const [editCountry, setEditCountry] = useState(proxy.country || 'auto');
   const [countries, setCountries] = useState([]);
+
+  const [liveData, setLiveData] = useState({ connections: 0, bandwidth_mbps: '0.00' });
+
+  useEffect(() => {
+    if (proxy.stream_proxy !== 2) return;
+    const fetchLive = () => {
+      fetch(`/api/connections/${proxy.id}`).then(r => r.json()).then(d => setLiveData(d)).catch(() => {});
+    };
+    fetchLive();
+    const interval = setInterval(fetchLive, 3000);
+    return () => clearInterval(interval);
+  }, [proxy.id, proxy.stream_proxy]);
 
   const daysLeft = proxy.expires_at
     ? Math.max(0, Math.ceil((new Date(proxy.expires_at) - new Date()) / (1000 * 60 * 60 * 24)))
@@ -143,19 +155,34 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, 
         <span className="font-mono truncate">{proxy.target_url}</span>
       </div>
 
-      {/* Bandwidth Bar */}
-      {proxy.stream_proxy === 2 && proxy.bandwidth_used > 0 && (
-        <div className="mt-3 p-3 rounded-lg bg-white/[0.02]">
-          <div className="flex items-center justify-between text-[10px] text-slate-500 mb-1.5">
-            <span>Bandwidth Used</span>
-            <span className="text-slate-300 font-semibold">{bwDisplay}</span>
-          </div>
-          <div className="h-1.5 rounded-full bg-white/[0.05] overflow-hidden">
-            <div className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all"
-              style={{ width: `${Math.min(100, (proxy.bandwidth_limit > 0 ? (bwMB / (proxy.bandwidth_limit * 30 * 3600 / 8)) * 100 : Math.min(bwMB / 10, 100)))}%` }} />
+      {/* Stream Stats */}
+      {proxy.stream_proxy === 2 && (
+        <div className="mt-3 p-3 rounded-lg bg-white/[0.02] space-y-2">
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div>
+              <p className={`text-lg font-bold ${parseInt(liveData.connections) > 0 ? 'text-emerald-400' : 'text-slate-600'}`}>{liveData.connections}</p>
+              <p className="text-[10px] text-slate-600">Connections</p>
+            </div>
+            <div>
+              <p className={`text-lg font-bold ${parseFloat(liveData.bandwidth_mbps) > 0 ? 'text-cyan-400' : 'text-slate-600'}`}>{liveData.bandwidth_mbps}</p>
+              <p className="text-[10px] text-slate-600">Mbps Live</p>
+            </div>
+            <div>
+              <p className="text-lg font-bold text-slate-300">{bwDisplay}</p>
+              <p className="text-[10px] text-slate-600">Total Used</p>
+            </div>
           </div>
           {proxy.bandwidth_limit > 0 && (
-            <p className="text-[10px] text-slate-600 mt-1">Limit: {proxy.bandwidth_limit} Mbps</p>
+            <div>
+              <div className="flex items-center justify-between text-[10px] text-slate-600 mb-1">
+                <span>Limit: {proxy.bandwidth_limit} Mbps</span>
+                <span>{Math.min(100, (parseFloat(liveData.bandwidth_mbps) / proxy.bandwidth_limit * 100)).toFixed(0)}%</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-white/[0.05] overflow-hidden">
+                <div className={`h-full rounded-full transition-all ${parseFloat(liveData.bandwidth_mbps) / proxy.bandwidth_limit > 0.8 ? 'bg-red-500' : 'bg-gradient-to-r from-cyan-500 to-blue-500'}`}
+                  style={{ width: `${Math.min(100, parseFloat(liveData.bandwidth_mbps) / proxy.bandwidth_limit * 100)}%` }} />
+              </div>
+            </div>
           )}
         </div>
       )}
