@@ -289,6 +289,10 @@ app.use((req, res, next) => {
       const escHost = targetHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const escOrigin = targetOrigin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+      const targetHostname = targetHost ? targetHost.split(':')[0] : '';
+      const targetPort = targetHost && targetHost.includes(':') ? targetHost.split(':')[1] : '';
+      const proxyHostname = proxyHost.split(':')[0];
+
       function rewriteUrl(str) {
         if (!str) return str;
         if (targetHost) {
@@ -298,6 +302,14 @@ app.use((req, res, next) => {
           str = str.split(`http://${targetHost}`).join(`https://${proxyHost}`);
           str = str.split(`www.${targetHost}`).join(proxyHost);
           str = str.split(targetHost).join(proxyHost);
+        }
+        if (targetHostname && targetHostname !== targetHost) {
+          if (targetPort) {
+            str = str.split(`"port":"${targetPort}"`).join(`"port":"80"`);
+            str = str.split(`"https_port":"443"`).join(`"https_port":"443"`);
+          }
+          str = str.split(`"url":"${targetHostname}"`).join(`"url":"${proxyHostname}"`);
+          str = str.split(`"server_protocol":"http"`).join(`"server_protocol":"https"`);
         }
         str = str.split(`www.${proxyHost}`).join(proxyHost);
         return str;
