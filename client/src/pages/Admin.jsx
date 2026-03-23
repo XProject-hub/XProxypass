@@ -629,19 +629,23 @@ export default function Admin() {
                             {sr.stream_proxy === 2 ? (
                               <div className="flex items-center gap-1">
                                 <input type="number" min="0" placeholder="0"
+                                  id={`bwl-${sr.id}`}
                                   key={`bw-${sr.id}-${sr.bandwidth_limit}`}
-                                  className="input-field text-xs w-20" style={{ padding: '0.25rem 0.5rem' }}
+                                  className="input-field text-xs w-16" style={{ padding: '0.25rem 0.5rem' }}
                                   defaultValue={sr.bandwidth_limit || 0}
-                                  onBlur={async (e) => {
-                                    const val = parseInt(e.target.value) || 0;
-                                    await fetch(`/api/admin/proxies/${sr.id}/bandwidth-limit`, {
-                                      method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ limit_mbps: val }),
-                                    });
-                                    loadData();
-                                  }}
                                 />
                                 <span className="text-[10px] text-slate-600">Mbps</span>
+                                <button onClick={async () => {
+                                  const val = parseInt(document.getElementById(`bwl-${sr.id}`).value) || 0;
+                                  await fetch(`/api/admin/proxies/${sr.id}/bandwidth-limit`, {
+                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ limit_mbps: val }),
+                                  });
+                                  showToast(`Bandwidth limit set to ${val} Mbps`, 'success');
+                                  loadData();
+                                }} className="p-1 rounded hover:bg-emerald-500/10 text-slate-600 hover:text-emerald-400 transition-all" title="Save">
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                </button>
                               </div>
                             ) : <span className="text-slate-600">-</span>}
                           </td>
@@ -734,17 +738,24 @@ export default function Admin() {
                             })()}
                           </td>
                           <td className="px-3 py-3">
-                            <input type="number" min="1" className="input-field text-xs w-16" style={{ padding: '0.2rem 0.4rem' }}
-                              key={`mc-${s.id}-${s.max_connections}`}
-                              defaultValue={s.max_connections || 100}
-                              onBlur={async (e) => {
+                            <div className="flex items-center gap-1">
+                              <input type="number" min="1" className="input-field text-xs w-16" style={{ padding: '0.2rem 0.4rem' }}
+                                id={`mc-${s.id}`}
+                                key={`mc-${s.id}-${s.max_connections}`}
+                                defaultValue={s.max_connections || 100}
+                              />
+                              <button onClick={async () => {
+                                const val = parseInt(document.getElementById(`mc-${s.id}`).value) || 100;
                                 await fetch(`/api/admin/servers/${s.id}/max-connections`, {
                                   method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ max: parseInt(e.target.value) || 100 }),
+                                  body: JSON.stringify({ max: val }),
                                 });
+                                showToast(`Max connections set to ${val}`, 'success');
                                 loadData();
-                              }}
-                            />
+                              }} className="p-1 rounded hover:bg-emerald-500/10 text-slate-600 hover:text-emerald-400 transition-all" title="Save">
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </td>
                           <td className="px-3 py-3 text-slate-400 text-xs">{s.bandwidth_limit || '1Gbps'}</td>
                           <td className="px-3 py-3">
