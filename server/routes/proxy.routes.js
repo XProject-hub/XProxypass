@@ -10,7 +10,7 @@ const RESERVED = new Set([
   'login', 'register', 'app', 'dev', 'staging', 'test',
 ]);
 
-const proxyPool = require('../proxy-pool');
+// const proxyPool = require('../proxy-pool');
 
 const COUNTRY_NAMES = {
   AD:'Andorra',AE:'UAE',AF:'Afghanistan',AG:'Antigua & Barbuda',AL:'Albania',AM:'Armenia',AO:'Angola',
@@ -66,10 +66,19 @@ router.get('/domains', (req, res) => {
 });
 
 router.get('/countries', (req, res) => {
-  const poolCountries = proxyPool.getAvailableCountries();
+  const servers = db.getAllServers().filter(s => s.status === 'online');
+  const countryMap = {};
+  for (const s of servers) {
+    if (!countryMap[s.country]) countryMap[s.country] = 0;
+    countryMap[s.country]++;
+  }
   const countries = [
-    { code: 'auto', name: 'Auto (Direct)', total: 0, verified: 0 },
-    ...poolCountries.map(c => ({ code: c.code, name: COUNTRY_NAMES[c.code] || c.code, total: c.total, verified: c.verified })),
+    { code: 'auto', name: 'Auto (Direct)', servers: 0 },
+    ...Object.keys(countryMap).sort().map(code => ({
+      code,
+      name: COUNTRY_NAMES[code] || code,
+      servers: countryMap[code],
+    })),
   ];
   res.json({ countries });
 });

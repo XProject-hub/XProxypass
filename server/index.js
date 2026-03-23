@@ -13,7 +13,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const config = require('./config');
 const db = require('./database');
-const proxyPool = require('./proxy-pool');
+// const proxyPool = require('./proxy-pool');
 const authRoutes = require('./routes/auth.routes');
 const proxyRoutes = require('./routes/proxy.routes');
 const statsRoutes = require('./routes/stats.routes');
@@ -24,7 +24,7 @@ const app = express();
 const proxy = httpProxy.createProxyServer({ xfwd: true });
 require('events').EventEmitter.defaultMaxListeners = 0;
 
-proxyPool.init();
+// proxyPool disabled - using own servers only
 
 const { checkServer } = require('./server-setup');
 async function autoHealthCheck() {
@@ -142,14 +142,7 @@ function getProxyAgent(country) {
     }
   }
 
-  if (!HttpsProxyAgent) return { agent: undefined, serverId: null };
-  const upstream = proxyPool.getRandomProxy(country);
-  if (!upstream) return { agent: undefined, serverId: null };
-  try {
-    return { agent: new HttpsProxyAgent(upstream.url), serverId: null };
-  } catch {
-    return { agent: undefined, serverId: null };
-  }
+  return { agent: undefined, serverId: null };
 }
 
 function addServerConnection(serverId) {
@@ -483,11 +476,11 @@ app.get('/api/server-connections', (req, res) => {
 });
 
 app.get('/api/proxy-pool/stats', (req, res) => {
-  res.json(proxyPool.getStats());
+  res.json({ total_proxies: 0, verified_proxies: 0, total_countries: 0, message: 'Using own servers only' });
 });
 
 app.get('/api/proxy-pool/countries', (req, res) => {
-  res.json({ countries: proxyPool.getAvailableCountries() });
+  res.json({ countries: [] });
 });
 
 const clientDist = path.join(__dirname, '..', 'client', 'dist');
