@@ -193,6 +193,7 @@ const stmts = {
   updateServerStatus: db.prepare('UPDATE proxy_servers SET status = ?, last_check = CURRENT_TIMESTAMP WHERE id = ?'),
   updateServerMaxConn: db.prepare('UPDATE proxy_servers SET max_connections = ? WHERE id = ?'),
   updateServerSSH: db.prepare('UPDATE proxy_servers SET ssh_port = ?, ssh_user = ?, ssh_pass = ? WHERE id = ?'),
+  updateServerDetails: db.prepare('UPDATE proxy_servers SET country = ?, label = ? WHERE id = ?'),
   deleteServer: db.prepare('DELETE FROM proxy_servers WHERE id = ?'),
 
   getUserStats: db.prepare(`
@@ -275,6 +276,7 @@ module.exports = {
   updateServerStatus(id, status) { return stmts.updateServerStatus.run(status, id); },
   updateServerMaxConn(id, max) { return stmts.updateServerMaxConn.run(max, id); },
   updateServerSSH(id, sshPort, sshUser, sshPass) { return stmts.updateServerSSH.run(sshPort, sshUser, sshPass, id); },
+  updateServerDetails(id, country, label) { return stmts.updateServerDetails.run(country, label, id); },
   deleteServer(id) { return stmts.deleteServer.run(id); },
   getActivityLogs() { return stmts.getActivityLogs.all(); },
 

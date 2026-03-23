@@ -5,7 +5,7 @@ import {
   Users, Globe, Activity, Trash2, Shield, ShieldOff, UserPlus,
   Plus, Loader2, ArrowLeft, CreditCard, ScrollText,
   LayoutList, Clock, MapPin, Server, RefreshCw, Wifi, WifiOff, CheckCircle2,
-  Play, Square, RotateCcw, Power
+  Play, Square, RotateCcw, Power, Edit3
 } from 'lucide-react';
 
 import { Radio, Link2 } from 'lucide-react';
@@ -39,6 +39,7 @@ export default function Admin() {
   const [creditModal, setCreditModal] = useState(null);
   const [creditAmount, setCreditAmount] = useState('');
   const [serverModal, setServerModal] = useState(false);
+  const [editServerModal, setEditServerModal] = useState(null);
   const [serverForm, setServerForm] = useState({ ip: '', ssh_port: '22', username: 'root', password: '', country: 'US', label: '', max_connections: '100', bandwidth_limit: '1Gbps' });
   const [serverInstalling, setServerInstalling] = useState(false);
 
@@ -247,6 +248,21 @@ export default function Admin() {
       showToast(`${action} request failed`, 'error');
     } finally {
       setServerAction(null);
+    }
+  };
+
+  const saveServerEdit = async () => {
+    if (!editServerModal) return;
+    const res = await fetch(`/api/admin/servers/${editServerModal.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editServerModal),
+    });
+    if (res.ok) {
+      showToast('Server updated', 'success');
+      setEditServerModal(null);
+      loadData();
+    } else {
+      showToast('Update failed', 'error');
     }
   };
 
@@ -746,6 +762,10 @@ export default function Admin() {
                           </td>
                           <td className="px-3 py-3">
                             <div className="flex items-center justify-end gap-1">
+                              <button onClick={() => setEditServerModal({ ...s, ssh_pass: '' })}
+                                className="p-1.5 rounded-lg hover:bg-blue-500/10 text-slate-600 hover:text-blue-400 transition-all" title="Edit Server">
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
                               <button onClick={() => serverCommand(s.id, 'start')} disabled={serverAction === `${s.id}-start`}
                                 className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-slate-600 hover:text-emerald-400 transition-all" title="Start Squid">
                                 {serverAction === `${s.id}-start` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
@@ -895,6 +915,41 @@ export default function Admin() {
               <button onClick={createUser} disabled={!newUser.username || !newUser.email || !newUser.password}
                 className="btn-primary flex-1 text-xs flex items-center justify-center gap-2" style={{ padding: '0.6rem 1rem' }}>
                 <UserPlus className="w-3.5 h-3.5" /> Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Server Modal */}
+      {editServerModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={() => setEditServerModal(null)}>
+          <div className="glass rounded-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-slate-100 mb-1">Edit Server</h3>
+            <p className="text-xs text-slate-500 mb-5">{editServerModal.ip}</p>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] text-slate-500 uppercase tracking-wider mb-1 block">Country Code</label>
+                  <input className="input-field text-xs" value={editServerModal.country || ''}
+                    onChange={e => setEditServerModal({...editServerModal, country: e.target.value.toUpperCase()})} />
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-500 uppercase tracking-wider mb-1 block">Label</label>
+                  <input className="input-field text-xs" value={editServerModal.label || ''}
+                    onChange={e => setEditServerModal({...editServerModal, label: e.target.value})} />
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-500 uppercase tracking-wider mb-1 block">SSH Password (leave empty to keep current)</label>
+                <input type="password" className="input-field text-xs" placeholder="Enter new password" value={editServerModal.ssh_pass || ''}
+                  onChange={e => setEditServerModal({...editServerModal, ssh_pass: e.target.value})} />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button onClick={() => setEditServerModal(null)} className="btn-secondary flex-1 text-xs" style={{ padding: '0.6rem 1rem' }}>Cancel</button>
+              <button onClick={saveServerEdit} className="btn-primary flex-1 text-xs flex items-center justify-center gap-2" style={{ padding: '0.6rem 1rem' }}>
+                <CheckCircle2 className="w-3.5 h-3.5" /> Save
               </button>
             </div>
           </div>

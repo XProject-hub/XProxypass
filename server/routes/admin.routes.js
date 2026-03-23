@@ -285,6 +285,25 @@ router.post('/servers', async (req, res) => {
   }
 });
 
+router.patch('/servers/:id', (req, res) => {
+  try {
+    const server = db.getServerById(req.params.id);
+    if (!server) return res.status(404).json({ error: 'Server not found' });
+    const { country, label, ssh_pass, ssh_port, ssh_user, max_connections, bandwidth_limit } = req.body;
+    if (country || label) {
+      db.updateServerDetails(req.params.id, (country || server.country).toUpperCase(), label || server.label);
+    }
+    if (ssh_pass) {
+      db.updateServerSSH(req.params.id, ssh_port || server.ssh_port || 22, ssh_user || server.ssh_user || 'root', ssh_pass);
+    }
+    if (max_connections) {
+      db.updateServerMaxConn(req.params.id, parseInt(max_connections) || 100);
+    }
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Server', 'Edit', `${server.ip}: updated`);
+    res.json({ server: db.getServerById(req.params.id) });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
 router.post('/servers/:id/max-connections', (req, res) => {
   try {
     const { max } = req.body;
