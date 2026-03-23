@@ -68,17 +68,22 @@ router.get('/domains', (req, res) => {
 router.get('/countries', (req, res) => {
   const servers = db.getAllServers().filter(s => s.status === 'online');
   const countryMap = {};
+  const labels = {};
   for (const s of servers) {
-    if (!countryMap[s.country]) countryMap[s.country] = 0;
+    if (!countryMap[s.country]) { countryMap[s.country] = 0; labels[s.country] = []; }
     countryMap[s.country]++;
+    if (s.label) labels[s.country].push(s.label);
   }
   const countries = [
     { code: 'auto', name: 'Auto (Direct)', servers: 0 },
-    ...Object.keys(countryMap).sort().map(code => ({
-      code,
-      name: COUNTRY_NAMES[code] || code,
-      servers: countryMap[code],
-    })),
+    ...Object.keys(countryMap).sort().map(code => {
+      const cityList = labels[code].length > 0 ? ` (${labels[code].join(', ')})` : '';
+      return {
+        code,
+        name: `${COUNTRY_NAMES[code] || code}${cityList}`,
+        servers: countryMap[code],
+      };
+    }),
   ];
   res.json({ countries });
 });
