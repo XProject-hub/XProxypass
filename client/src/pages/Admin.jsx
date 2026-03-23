@@ -146,6 +146,12 @@ export default function Admin() {
   };
 
   const [checkingServer, setCheckingServer] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = 'info') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
 
   const checkServerHealth = async (id) => {
     setCheckingServer(id);
@@ -153,11 +159,15 @@ export default function Admin() {
       const res = await fetch(`/api/admin/servers/${id}/check`, { method: 'POST' });
       if (res.ok) {
         const data = await res.json();
-        alert(`Health Check: ${data.server.status.toUpperCase()}`);
+        const isOnline = data.server.status === 'online';
+        showToast(
+          isOnline ? `Server is online and responding` : `Server is not responding - check if Squid is running`,
+          isOnline ? 'success' : 'error'
+        );
         loadData();
       }
     } catch {
-      alert('Health check failed');
+      showToast('Health check request failed', 'error');
     } finally {
       setCheckingServer(null);
     }
@@ -849,6 +859,23 @@ export default function Admin() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-[200] px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-fade-in-up ${
+          toast.type === 'success' ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400' :
+          toast.type === 'error' ? 'bg-red-500/20 border border-red-500/30 text-red-400' :
+          'bg-cyan-500/20 border border-cyan-500/30 text-cyan-400'
+        }`} style={{ backdropFilter: 'blur(20px)' }}>
+          {toast.type === 'success' && <CheckCircle2 className="w-5 h-5" />}
+          {toast.type === 'error' && <WifiOff className="w-5 h-5" />}
+          {toast.type === 'info' && <Activity className="w-5 h-5" />}
+          <span className="text-sm font-medium">{toast.message}</span>
+          <button onClick={() => setToast(null)} className="ml-2 opacity-50 hover:opacity-100">
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
     </div>

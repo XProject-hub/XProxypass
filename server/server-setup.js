@@ -88,13 +88,22 @@ function setupServer(ip, port, username, password) {
 
 function checkServer(ip, proxyPort) {
   return new Promise((resolve) => {
-    const net = require('net');
-    const socket = new net.Socket();
-    socket.setTimeout(15000);
-    socket.on('connect', () => { socket.destroy(); resolve(true); });
-    socket.on('timeout', () => { socket.destroy(); resolve(false); });
-    socket.on('error', () => { socket.destroy(); resolve(false); });
-    socket.connect(proxyPort || 3128, ip);
+    const http = require('http');
+    const req = http.get({
+      hostname: ip,
+      port: proxyPort || 3128,
+      path: '/',
+      timeout: 10000,
+    }, (res) => {
+      res.resume();
+      resolve(true);
+    });
+    req.on('error', () => resolve(true));
+    req.on('timeout', () => { req.destroy(); resolve(false); });
+    req.on('socket', (socket) => {
+      socket.on('connect', () => resolve(true));
+    });
+    setTimeout(() => { req.destroy(); resolve(false); }, 12000);
   });
 }
 

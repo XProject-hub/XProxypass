@@ -288,4 +288,4 @@ XProxypass/
 
 ## License
 
-Private software. All rights reserved.
+Private software. Developed by X Project. All rights reserved.

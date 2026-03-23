@@ -45,7 +45,7 @@ export default function Footer() {
 
         <div className="mt-12 pt-8 border-t border-white/[0.06] flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-sm text-slate-600">
-            &copy; {new Date().getFullYear()} ProxyXPass. All rights reserved.
+            &copy; {new Date().getFullYear()} ProxyXPass. Developed by X Project.
           </p>
           <div className="flex items-center gap-4">
             <a href="https://proxyxpass.com" className="text-slate-600 hover:text-cyan-400 transition-colors" title="Website">
