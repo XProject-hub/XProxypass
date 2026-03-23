@@ -242,6 +242,42 @@ app.use((req, res, next) => {
     if (agent) proxyOptions.agent = agent;
 
     proxy.once('proxyRes', (proxyRes, _req, _res) => {
+      if (record.stream_proxy === 2 && [301, 302, 307, 308].includes(proxyRes.statusCode) && proxyRes.headers.location) {
+        const redirectUrl = proxyRes.headers.location;
+        proxyRes.resume();
+
+        const client = redirectUrl.startsWith('https') ? require('https') : require('http');
+        const redirectReq = client.get(redirectUrl, { timeout: 30000 }, (redirectRes) => {
+          if ([301, 302, 307, 308].includes(redirectRes.statusCode) && redirectRes.headers.location) {
+            redirectRes.resume();
+            const client2 = redirectRes.headers.location.startsWith('https') ? require('https') : require('http');
+            client2.get(redirectRes.headers.location, { timeout: 30000 }, (finalRes) => {
+              const hdrs = { ...finalRes.headers };
+              delete hdrs['content-security-policy'];
+              hdrs['cache-control'] = 'no-store, no-cache';
+              res.writeHead(finalRes.statusCode, hdrs);
+              let pendingBytes = 0;
+              const flush = setInterval(() => { if (pendingBytes > 0) { try { db.addBandwidth(pendingBytes, record.id); } catch {} pendingBytes = 0; } }, 5000);
+              finalRes.on('data', chunk => { res.write(chunk); pendingBytes += chunk.length; if (!bandwidthPerSecond[record.id]) bandwidthPerSecond[record.id] = 0; bandwidthPerSecond[record.id] += chunk.length; });
+              finalRes.on('end', () => { clearInterval(flush); res.end(); if (pendingBytes > 0) try { db.addBandwidth(pendingBytes, record.id); } catch {} });
+              res.on('close', () => { clearInterval(flush); finalRes.destroy(); if (pendingBytes > 0) try { db.addBandwidth(pendingBytes, record.id); } catch {} });
+            }).on('error', () => { res.writeHead(502); res.end('Stream unavailable'); });
+            return;
+          }
+          const hdrs = { ...redirectRes.headers };
+          delete hdrs['content-security-policy'];
+          hdrs['cache-control'] = 'no-store, no-cache';
+          res.writeHead(redirectRes.statusCode, hdrs);
+          let pendingBytes = 0;
+          const flush = setInterval(() => { if (pendingBytes > 0) { try { db.addBandwidth(pendingBytes, record.id); } catch {} pendingBytes = 0; } }, 5000);
+          redirectRes.on('data', chunk => { res.write(chunk); pendingBytes += chunk.length; if (!bandwidthPerSecond[record.id]) bandwidthPerSecond[record.id] = 0; bandwidthPerSecond[record.id] += chunk.length; });
+          redirectRes.on('end', () => { clearInterval(flush); res.end(); if (pendingBytes > 0) try { db.addBandwidth(pendingBytes, record.id); } catch {} });
+          res.on('close', () => { clearInterval(flush); redirectRes.destroy(); if (pendingBytes > 0) try { db.addBandwidth(pendingBytes, record.id); } catch {} });
+        });
+        redirectReq.on('error', () => { res.writeHead(502); res.end('Stream unavailable'); });
+        return;
+      }
+
       const contentType = proxyRes.headers['content-type'] || '';
       let targetHost, targetOrigin;
       try {
