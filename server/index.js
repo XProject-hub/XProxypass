@@ -304,12 +304,7 @@ app.use((req, res, next) => {
           str = str.split(targetHost).join(proxyHost);
         }
         if (targetHostname && targetHostname !== targetHost) {
-          if (targetPort) {
-            str = str.split(`"port":"${targetPort}"`).join(`"port":"80"`);
-            str = str.split(`"https_port":"443"`).join(`"https_port":"443"`);
-          }
           str = str.split(`"url":"${targetHostname}"`).join(`"url":"${proxyHostname}"`);
-          str = str.split(`"server_protocol":"http"`).join(`"server_protocol":"https"`);
         }
         str = str.split(`www.${proxyHost}`).join(proxyHost);
         return str;
