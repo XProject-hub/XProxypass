@@ -160,10 +160,10 @@ export default function Admin() {
       const res = await fetch(`/api/admin/servers/${id}/check`, { method: 'POST' });
       if (res.ok) {
         const data = await res.json();
-        const isOnline = data.server.status === 'online';
+        const responding = data.check_result === 'responding';
         showToast(
-          isOnline ? `Server is online and responding` : `Server is not responding - check if Squid is running`,
-          isOnline ? 'success' : 'error'
+          responding ? `Server is online and responding` : `Server check: not responding (status unchanged)`,
+          responding ? 'success' : 'error'
         );
         loadData();
       }

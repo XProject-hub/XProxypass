@@ -301,10 +301,12 @@ router.post('/servers/:id/check', async (req, res) => {
     if (!server) return res.status(404).json({ error: 'Server not found' });
 
     const alive = await checkServer(server.ip, server.port);
-    const status = alive ? 'online' : 'offline';
-    db.updateServerStatus(server.id, status);
+    if (alive) {
+      db.updateServerStatus(server.id, 'online');
+    }
+    const status = alive ? 'online' : server.status;
 
-    res.json({ server: { ...server, status, last_check: new Date().toISOString() } });
+    res.json({ server: { ...server, status, last_check: new Date().toISOString() }, check_result: alive ? 'responding' : 'not_responding' });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
