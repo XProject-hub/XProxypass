@@ -315,7 +315,8 @@ router.get('/servers/:id/uptime', async (req, res) => {
       "echo \"SQUID:$(systemctl show squid --property=ActiveEnterTimestamp --value)\"",
       "echo \"CPU:$(top -bn1 | grep 'Cpu(s)' | awk '{print $2}')\"",
       "echo \"RAM:$(free -m | awk '/Mem:/{printf \"%d/%d\", $3, $2}')\"",
-      "echo \"DISK:$(df -h / | awk 'NR==2{printf \"%s/%s\", $3, $2}')\""
+      "echo \"DISK:$(df -h / | awk 'NR==2{printf \"%s/%s\", $3, $2}')\"",
+      "echo \"SQUIDACTIVE:$(systemctl is-active squid)\""
     ].join(' && ');
     const output = await sshCommand(server, cmd);
     const lines = output.split('\n');
@@ -329,10 +330,17 @@ router.get('/servers/:id/uptime', async (req, res) => {
         const ts = line.replace('SQUID:', '').trim();
         if (ts) {
           const diff = Date.now() - new Date(ts).getTime();
-          const hours = Math.floor(diff / 3600000);
-          const mins = Math.floor((diff % 3600000) / 60000);
-          squidUptime = hours > 24 ? `${Math.floor(hours/24)}d ${hours%24}h` : `${hours}h ${mins}m`;
+          if (diff < 0 || diff > 365 * 24 * 3600000) { squidUptime = 'Stopped'; }
+          else {
+            const hours = Math.floor(diff / 3600000);
+            const mins = Math.floor((diff % 3600000) / 60000);
+            squidUptime = hours > 24 ? `${Math.floor(hours/24)}d ${hours%24}h` : `${hours}h ${mins}m`;
+          }
         }
+      }
+      if (line.startsWith('SQUIDACTIVE:')) {
+        const active = line.replace('SQUIDACTIVE:', '').trim();
+        if (active !== 'active') squidUptime = 'Stopped';
       }
     }
     res.json({ server_uptime: serverUptime, squid_uptime: squidUptime, cpu, ram, disk });
