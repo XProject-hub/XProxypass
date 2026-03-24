@@ -501,4 +501,72 @@ router.delete('/servers/:id', (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
+// ── Stream Plans Management ────────────────────────
+
+router.get('/stream-plans', (req, res) => {
+  try { res.json({ plans: db.getAllStreamPlans() }); }
+  catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
+router.post('/stream-plans', (req, res) => {
+  try {
+    const { name, type, speed_mbps, price_eur, description } = req.body;
+    if (!name || !type || !speed_mbps || !price_eur) {
+      return res.status(400).json({ error: 'Name, type, speed, and price are required' });
+    }
+    if (!['streaming', 'enterprise', 'reseller'].includes(type)) {
+      return res.status(400).json({ error: 'Type must be streaming, enterprise, or reseller' });
+    }
+    const result = db.createStreamPlan(name, type, parseInt(speed_mbps), parseFloat(price_eur), description);
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Plans', 'Create', `${name} (${type}, ${speed_mbps}Mbps, ${price_eur}EUR)`);
+    res.status(201).json({ plan: db.getStreamPlanById(result.lastInsertRowid) });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
+router.patch('/stream-plans/:id', (req, res) => {
+  try {
+    const plan = db.getStreamPlanById(req.params.id);
+    if (!plan) return res.status(404).json({ error: 'Plan not found' });
+    const { name, type, speed_mbps, price_eur, description, is_active } = req.body;
+    db.updateStreamPlan(
+      req.params.id,
+      name || plan.name,
+      type || plan.type,
+      parseInt(speed_mbps) || plan.speed_mbps,
+      parseFloat(price_eur) || plan.price_eur,
+      description !== undefined ? description : plan.description,
+      is_active !== undefined ? (is_active ? 1 : 0) : plan.is_active
+    );
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Plans', 'Update', plan.name);
+    res.json({ plan: db.getStreamPlanById(req.params.id) });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
+router.delete('/stream-plans/:id', (req, res) => {
+  try {
+    const plan = db.getStreamPlanById(req.params.id);
+    if (!plan) return res.status(404).json({ error: 'Plan not found' });
+    db.deleteStreamPlan(req.params.id);
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Plans', 'Delete', plan.name);
+    res.json({ message: 'Plan deleted' });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
+// ── Subscriptions Overview ─────────────────────────
+
+router.get('/subscriptions', (req, res) => {
+  try { res.json({ subscriptions: db.getAllSubscriptions() }); }
+  catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
+router.post('/subscriptions/:id/cancel', (req, res) => {
+  try {
+    const sub = db.getSubscriptionById(req.params.id);
+    if (!sub) return res.status(404).json({ error: 'Subscription not found' });
+    db.updateSubscriptionStatus(req.params.id, 'cancelled');
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Subscription', 'AdminCancel', `${sub.username} - ${sub.plan_name}`);
+    res.json({ message: 'Subscription cancelled' });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
 module.exports = router;

@@ -176,9 +176,12 @@ const server = http.createServer(async (req, res) => {
     return res.end(JSON.stringify({ error: 'Streaming not enabled for this proxy.' }));
   }
 
-  if (record.stream_proxy === 2 && record.bandwidth_limit > 0 && !checkBandwidthLimit(record.id, record.bandwidth_limit)) {
-    res.writeHead(429, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: 'Bandwidth limit exceeded.' }));
+  if (record.stream_proxy === 2) {
+    const speedLimit = record.speed_limit_mbps || record.bandwidth_limit || 0;
+    if (speedLimit > 0 && !checkBandwidthLimit(record.id, speedLimit)) {
+      res.writeHead(429, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Speed limit reached.' }));
+    }
   }
 
   if (record.stream_proxy !== 2 && !checkBandwidthLimit(record.id, DNS_BW_LIMIT)) {

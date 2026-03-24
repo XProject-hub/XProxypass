@@ -199,6 +199,77 @@ router.post('/proxies/:id/bandwidth-limit', (req, res) => {
   }
 });
 
+// ── Gbps Pool ──────────────────────────────────────
+
+router.get('/pool', (req, res) => {
+  try {
+    const reseller = db.getUserById(req.user.id);
+    const subUsers = db.getUsersByParent(req.user.id);
+    const proxies = db.getProxiesByParent(req.user.id);
+    const totalAllocated = proxies.reduce((sum, p) => sum + (p.speed_limit_mbps || 0), 0);
+
+    db.setGbpsAllocated(req.user.id, totalAllocated);
+
+    res.json({
+      pool: {
+        total_mbps: reseller.gbps_pool || 0,
+        allocated_mbps: totalAllocated,
+        available_mbps: Math.max(0, (reseller.gbps_pool || 0) - totalAllocated),
+        total_gbps: ((reseller.gbps_pool || 0) / 1000).toFixed(1),
+        allocated_gbps: (totalAllocated / 1000).toFixed(1),
+        available_gbps: (Math.max(0, (reseller.gbps_pool || 0) - totalAllocated) / 1000).toFixed(1),
+      },
+      allocations: proxies.map(p => ({
+        proxy_id: p.id,
+        subdomain: p.subdomain,
+        owner: p.owner_username,
+        speed_limit_mbps: p.speed_limit_mbps || 0,
+      })),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/proxies/:id/allocate-speed', (req, res) => {
+  try {
+    const { speed_mbps } = req.body;
+    const speedMbps = parseInt(speed_mbps) || 0;
+
+    const proxy = db.getProxyById(req.params.id);
+    if (!proxy) return res.status(404).json({ error: 'Proxy not found' });
+    if (!isOwnSubUser(req.user.id, proxy.user_id)) {
+      return res.status(403).json({ error: 'Not your sub-user proxy' });
+    }
+
+    const reseller = db.getUserById(req.user.id);
+    const proxies = db.getProxiesByParent(req.user.id);
+    const currentAllocated = proxies.reduce((sum, p) => {
+      if (p.id === parseInt(req.params.id)) return sum;
+      return sum + (p.speed_limit_mbps || 0);
+    }, 0);
+
+    const pool = reseller.gbps_pool || 0;
+    if (speedMbps > 0 && (currentAllocated + speedMbps) > pool) {
+      return res.status(400).json({
+        error: `Not enough pool capacity. Available: ${pool - currentAllocated} Mbps, requested: ${speedMbps} Mbps`,
+      });
+    }
+
+    db.setProxySpeedLimit(proxy.id, speedMbps);
+    db.setGbpsAllocated(req.user.id, currentAllocated + speedMbps);
+
+    db.addActivityLog(req.user.id, req.reseller.username, req.ip, 'Reseller', 'AllocateSpeed',
+      `${proxy.subdomain}: ${speedMbps} Mbps`);
+
+    res.json({ message: 'Speed allocated', proxy: db.getProxyById(proxy.id) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // ── Stats ──────────────────────────────────────────
 
 router.get('/stats', (req, res) => {
@@ -212,6 +283,8 @@ router.get('/stats', (req, res) => {
         max_proxies: reseller.max_proxies,
         max_users: reseller.max_users,
         max_bandwidth: reseller.max_bandwidth,
+        gbps_pool: reseller.gbps_pool || 0,
+        gbps_allocated: reseller.gbps_allocated || 0,
       },
     });
   } catch (err) {

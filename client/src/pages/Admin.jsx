@@ -9,7 +9,7 @@ import {
   Play, Square, RotateCcw, Power, Edit3, Zap
 } from 'lucide-react';
 
-import { Radio, Link2 } from 'lucide-react';
+import { Radio, Link2, Tag } from 'lucide-react';
 
 const TABS = [
   { id: 'proxies', label: 'Proxies', icon: Globe },
@@ -17,6 +17,7 @@ const TABS = [
   { id: 'domains', label: 'Domains', icon: Link2 },
   { id: 'streams', label: 'Streams', icon: Radio },
   { id: 'servers', label: 'Servers', icon: Server },
+  { id: 'plans', label: 'Plans', icon: Tag },
   { id: 'credits', label: 'Credits', icon: CreditCard },
   { id: 'activity', label: 'Activity', icon: ScrollText },
 ];
@@ -43,6 +44,10 @@ export default function Admin() {
   const [editServerModal, setEditServerModal] = useState(null);
   const [serverForm, setServerForm] = useState({ ip: '', ssh_port: '22', username: 'root', password: '', country: 'US', label: '', max_connections: '100', bandwidth_limit: '1Gbps' });
   const [serverInstalling, setServerInstalling] = useState(false);
+  const [streamPlans, setStreamPlans] = useState([]);
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [planModal, setPlanModal] = useState(false);
+  const [planForm, setPlanForm] = useState({ name: '', type: 'streaming', speed_mbps: '1000', price_eur: '99', description: '' });
   const [liveStats, setLiveStats] = useState({ active_users: 0, bandwidth_mbps: '0', requests_per_sec: 0 });
   const socketRef = useRef(null);
 
@@ -112,6 +117,10 @@ export default function Admin() {
       if (dmRes.ok) setAdminDomains((await dmRes.json()).domains);
       const setRes = await fetch('/api/admin/settings');
       if (setRes.ok) { const d = await setRes.json(); setRegOpen(d.registration_open); }
+      const plRes = await fetch('/api/admin/stream-plans');
+      if (plRes.ok) setStreamPlans((await plRes.json()).plans);
+      const subRes = await fetch('/api/admin/subscriptions');
+      if (subRes.ok) setSubscriptions((await subRes.json()).subscriptions);
     } catch (err) {
       console.error('Admin load error:', err);
     } finally {
@@ -606,6 +615,136 @@ export default function Admin() {
                   </table>
                 </div>
                 {activityLogs.length === 0 && <div className="text-center py-10 text-slate-600 text-sm">No activity yet</div>}
+              </div>
+            </div>
+          )}
+
+          {/* Plans Tab */}
+          {tab === 'plans' && (
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-slate-100">Stream Plans</h2>
+                <button onClick={() => { setPlanForm({ name: '', type: 'streaming', speed_mbps: '1000', price_eur: '99', description: '' }); setPlanModal(true); }}
+                  className="btn-primary flex items-center gap-2 text-sm"><Plus className="w-4 h-4" /> Add Plan</button>
+              </div>
+
+              {planModal && (
+                <div className="glass rounded-xl p-6 mb-6 border border-cyan-500/10">
+                  <h3 className="text-sm font-semibold text-slate-200 mb-4">Create Plan</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <input value={planForm.name} onChange={e => setPlanForm({...planForm, name: e.target.value})} placeholder="Plan name"
+                      className="bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600" />
+                    <select value={planForm.type} onChange={e => setPlanForm({...planForm, type: e.target.value})}
+                      className="bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-slate-200">
+                      <option value="streaming">Streaming</option>
+                      <option value="enterprise">Enterprise</option>
+                      <option value="reseller">Reseller</option>
+                    </select>
+                    <input value={planForm.speed_mbps} onChange={e => setPlanForm({...planForm, speed_mbps: e.target.value})} placeholder="Speed (Mbps)" type="number"
+                      className="bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600" />
+                    <input value={planForm.price_eur} onChange={e => setPlanForm({...planForm, price_eur: e.target.value})} placeholder="Price EUR" type="number" step="0.01"
+                      className="bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600" />
+                    <input value={planForm.description} onChange={e => setPlanForm({...planForm, description: e.target.value})} placeholder="Description"
+                      className="bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600" />
+                  </div>
+                  <div className="flex gap-2 mt-4">
+                    <button onClick={async () => {
+                      const r = await fetch('/api/admin/stream-plans', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(planForm) });
+                      if (r.ok) { setPlanModal(false); loadData(); showToast('Plan created'); }
+                      else { const d = await r.json(); showToast(d.error, 'error'); }
+                    }} className="btn-primary text-sm">Create</button>
+                    <button onClick={() => setPlanModal(false)} className="btn-secondary text-sm">Cancel</button>
+                  </div>
+                </div>
+              )}
+
+              <div className="glass rounded-xl overflow-hidden mb-8">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead><tr className="border-b border-white/[0.06]">
+                      {['Name', 'Type', 'Speed', 'Price', 'Status', ''].map(h => (
+                        <th key={h} className="text-left px-4 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody>
+                      {streamPlans.map(p => (
+                        <tr key={p.id} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
+                          <td className="px-4 py-3 text-slate-200 font-medium text-xs">{p.name}</td>
+                          <td className="px-4 py-3">
+                            <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${
+                              p.type === 'enterprise' ? 'text-amber-400 bg-amber-500/10' : p.type === 'reseller' ? 'text-purple-400 bg-purple-500/10' : 'text-cyan-400 bg-cyan-500/10'
+                            }`}>{p.type}</span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-300 text-xs">{(p.speed_mbps / 1000).toFixed(0)} Gbps</td>
+                          <td className="px-4 py-3 text-emerald-400 font-semibold text-xs">{p.price_eur} EUR</td>
+                          <td className="px-4 py-3">
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full ${p.is_active ? 'text-emerald-400 bg-emerald-500/10' : 'text-red-400 bg-red-500/10'}`}>
+                              {p.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-1">
+                              <button onClick={async () => {
+                                await fetch(`/api/admin/stream-plans/${p.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ is_active: !p.is_active }) });
+                                loadData();
+                              }} className="p-1.5 rounded-lg hover:bg-cyan-500/10 text-slate-600 hover:text-cyan-400 transition-all" title="Toggle">
+                                {p.is_active ? <Square className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                              </button>
+                              <button onClick={async () => {
+                                if (!confirm(`Delete plan "${p.name}"?`)) return;
+                                await fetch(`/api/admin/stream-plans/${p.id}`, { method: 'DELETE' });
+                                loadData();
+                              }} className="p-1.5 rounded-lg hover:bg-red-500/10 text-slate-600 hover:text-red-400 transition-all" title="Delete">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <h3 className="text-lg font-bold text-slate-100 mb-4">Active Subscriptions</h3>
+              <div className="glass rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead><tr className="border-b border-white/[0.06]">
+                      {['User', 'Plan', 'Speed', 'Status', 'Expires', ''].map(h => (
+                        <th key={h} className="text-left px-4 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody>
+                      {subscriptions.map(s => (
+                        <tr key={s.id} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
+                          <td className="px-4 py-3 text-slate-200 font-medium text-xs">{s.username}</td>
+                          <td className="px-4 py-3 text-cyan-400 text-xs">{s.plan_name}</td>
+                          <td className="px-4 py-3 text-slate-300 text-xs">{(s.speed_mbps / 1000).toFixed(0)} Gbps</td>
+                          <td className="px-4 py-3">
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                              s.status === 'active' ? 'text-emerald-400 bg-emerald-500/10' : s.status === 'cancelled' ? 'text-red-400 bg-red-500/10' : 'text-amber-400 bg-amber-500/10'
+                            }`}>{s.status}</span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-500 text-xs">{s.expires_at ? new Date(s.expires_at).toLocaleDateString() : '-'}</td>
+                          <td className="px-4 py-3">
+                            {s.status === 'active' && (
+                              <button onClick={async () => {
+                                if (!confirm('Cancel this subscription?')) return;
+                                await fetch(`/api/admin/subscriptions/${s.id}/cancel`, { method: 'POST' });
+                                loadData(); showToast('Subscription cancelled');
+                              }} className="px-2 py-1 rounded-lg bg-red-500/10 text-red-400 text-[10px] hover:bg-red-500/20">Cancel</button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                      {subscriptions.length === 0 && (
+                        <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-600 text-sm">No subscriptions</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}

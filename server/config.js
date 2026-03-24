@@ -12,4 +12,5 @@ module.exports = {
   nodeSecret: process.env.NODE_SECRET || 'change-this-node-secret',
   cloudflareToken: process.env.CLOUDFLARE_TOKEN || '',
   cloudflareZoneId: process.env.CLOUDFLARE_ZONE_ID || '',
+  paypalWebhookId: process.env.PAYPAL_WEBHOOK_ID || '',
 };

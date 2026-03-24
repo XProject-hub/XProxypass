@@ -172,18 +172,23 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, 
               <p className="text-[10px] text-slate-600">Total Used</p>
             </div>
           </div>
-          {proxy.bandwidth_limit > 0 && (
-            <div>
-              <div className="flex items-center justify-between text-[10px] text-slate-600 mb-1">
-                <span>Limit: {proxy.bandwidth_limit} Mbps</span>
-                <span>{Math.min(100, (parseFloat(liveData.bandwidth_mbps) / proxy.bandwidth_limit * 100)).toFixed(0)}%</span>
+          {(proxy.speed_limit_mbps > 0 || proxy.bandwidth_limit > 0) && (() => {
+            const limit = proxy.speed_limit_mbps || proxy.bandwidth_limit;
+            const pct = Math.min(100, parseFloat(liveData.bandwidth_mbps) / limit * 100);
+            const label = proxy.speed_limit_mbps > 0 ? `${(proxy.speed_limit_mbps / 1000).toFixed(0)} Gbps plan` : `${proxy.bandwidth_limit} Mbps`;
+            return (
+              <div>
+                <div className="flex items-center justify-between text-[10px] text-slate-600 mb-1">
+                  <span>{label}</span>
+                  <span>{pct.toFixed(0)}%</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-white/[0.05] overflow-hidden">
+                  <div className={`h-full rounded-full transition-all ${pct > 80 ? 'bg-red-500' : 'bg-gradient-to-r from-cyan-500 to-blue-500'}`}
+                    style={{ width: `${pct}%` }} />
+                </div>
               </div>
-              <div className="h-1.5 rounded-full bg-white/[0.05] overflow-hidden">
-                <div className={`h-full rounded-full transition-all ${parseFloat(liveData.bandwidth_mbps) / proxy.bandwidth_limit > 0.8 ? 'bg-red-500' : 'bg-gradient-to-r from-cyan-500 to-blue-500'}`}
-                  style={{ width: `${Math.min(100, parseFloat(liveData.bandwidth_mbps) / proxy.bandwidth_limit * 100)}%` }} />
-              </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       )}
 

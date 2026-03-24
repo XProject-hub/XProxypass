@@ -4,13 +4,14 @@ import { useAuth } from '../App';
 import Navbar from '../components/Navbar';
 import {
   Users, Globe, Radio, BarChart3, Plus, Trash2, CreditCard,
-  ArrowLeft, Check, X, Loader2, ChevronDown, Save, Eye, EyeOff,
+  ArrowLeft, Check, X, Loader2, ChevronDown, Save, Eye, EyeOff, Gauge,
 } from 'lucide-react';
 
 const TABS = [
   { id: 'users', label: 'Sub-Users', icon: Users },
   { id: 'proxies', label: 'Proxies', icon: Globe },
   { id: 'streams', label: 'Streams', icon: Radio },
+  { id: 'pool', label: 'Gbps Pool', icon: Gauge },
   { id: 'stats', label: 'Stats', icon: BarChart3 },
 ];
 
@@ -23,6 +24,9 @@ export default function Reseller() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
+
+  const [pool, setPool] = useState(null);
+  const [speedAllocs, setSpeedAllocs] = useState({});
 
   const [showCreateUser, setShowCreateUser] = useState(false);
   const [newUser, setNewUser] = useState({ username: '', email: '', password: '', credits: 0 });
@@ -37,16 +41,18 @@ export default function Reseller() {
 
   const loadData = async () => {
     try {
-      const [usersRes, proxiesRes, streamsRes, statsRes] = await Promise.all([
+      const [usersRes, proxiesRes, streamsRes, statsRes, poolRes] = await Promise.all([
         fetch('/api/reseller/users'),
         fetch('/api/reseller/proxies'),
         fetch('/api/reseller/stream-requests'),
         fetch('/api/reseller/stats'),
+        fetch('/api/reseller/pool'),
       ]);
       if (usersRes.ok) setSubUsers((await usersRes.json()).users);
       if (proxiesRes.ok) setProxies((await proxiesRes.json()).proxies);
       if (streamsRes.ok) setStreamRequests((await streamsRes.json()).requests);
       if (statsRes.ok) setStats((await statsRes.json()).stats);
+      if (poolRes.ok) setPool(await poolRes.json());
     } catch (err) {
       console.error('Failed to load:', err);
     } finally {
@@ -378,11 +384,78 @@ export default function Reseller() {
           </div>
         )}
 
+        {/* Pool Tab */}
+        {tab === 'pool' && pool && (
+          <div>
+            <h2 className="text-lg font-semibold text-slate-200 mb-4">Gbps Pool Management</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+              <div className="glass rounded-xl p-5">
+                <p className="text-2xl font-bold text-cyan-400">{pool.pool.total_gbps} <span className="text-sm text-slate-500 font-normal">Gbps</span></p>
+                <p className="text-xs text-slate-500 mt-1">Total Pool</p>
+              </div>
+              <div className="glass rounded-xl p-5">
+                <p className="text-2xl font-bold text-amber-400">{pool.pool.allocated_gbps} <span className="text-sm text-slate-500 font-normal">Gbps</span></p>
+                <p className="text-xs text-slate-500 mt-1">Allocated</p>
+              </div>
+              <div className="glass rounded-xl p-5">
+                <p className="text-2xl font-bold text-emerald-400">{pool.pool.available_gbps} <span className="text-sm text-slate-500 font-normal">Gbps</span></p>
+                <p className="text-xs text-slate-500 mt-1">Available</p>
+              </div>
+            </div>
+
+            <h3 className="text-sm font-semibold text-slate-300 mb-3">Speed Allocation per Proxy</h3>
+            <div className="glass rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead><tr className="border-b border-white/[0.06]">
+                    <th className="text-left text-slate-500 font-medium p-4">Proxy</th>
+                    <th className="text-left text-slate-500 font-medium p-4">Owner</th>
+                    <th className="text-left text-slate-500 font-medium p-4">Current Speed</th>
+                    <th className="text-left text-slate-500 font-medium p-4">Allocate (Mbps)</th>
+                    <th className="text-right text-slate-500 font-medium p-4">Action</th>
+                  </tr></thead>
+                  <tbody>
+                    {(pool.allocations || []).map(a => (
+                      <tr key={a.proxy_id} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
+                        <td className="p-4 text-cyan-400 font-medium">{a.subdomain}</td>
+                        <td className="p-4 text-slate-300">{a.owner}</td>
+                        <td className="p-4 text-slate-400">{a.speed_limit_mbps ? `${a.speed_limit_mbps} Mbps (${(a.speed_limit_mbps / 1000).toFixed(1)} Gbps)` : 'None'}</td>
+                        <td className="p-4">
+                          <input type="number" min="0" step="100"
+                            value={speedAllocs[a.proxy_id] ?? a.speed_limit_mbps ?? 0}
+                            onChange={e => setSpeedAllocs({...speedAllocs, [a.proxy_id]: parseInt(e.target.value) || 0})}
+                            className="w-28 bg-white/[0.03] border border-white/[0.06] rounded px-2 py-1 text-sm text-slate-200" />
+                        </td>
+                        <td className="p-4 text-right">
+                          <button onClick={async () => {
+                            const mbps = speedAllocs[a.proxy_id] ?? a.speed_limit_mbps ?? 0;
+                            const r = await fetch(`/api/reseller/proxies/${a.proxy_id}/allocate-speed`, {
+                              method: 'POST', headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ speed_mbps: mbps }),
+                            });
+                            if (r.ok) { showToast('Speed allocated'); loadData(); }
+                            else { const d = await r.json(); showToast(d.error, 'error'); }
+                          }} className="px-3 py-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 text-xs font-medium hover:bg-cyan-500/20 transition">
+                            <Save className="w-3.5 h-3.5 inline mr-1" /> Save
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {(!pool.allocations || pool.allocations.length === 0) && (
+                      <tr><td colSpan={5} className="p-8 text-center text-slate-500">No proxies to allocate</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Stats Tab */}
         {tab === 'stats' && stats && (
           <div>
             <h2 className="text-lg font-semibold text-slate-200 mb-4">Reseller Statistics</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="glass rounded-xl p-5">
                 <p className="text-2xl font-bold text-slate-100">{stats.total_users}<span className="text-sm text-slate-500 font-normal">{stats.max_users ? ` / ${stats.max_users}` : ''}</span></p>
                 <p className="text-xs text-slate-500 mt-1">Sub-Users</p>
@@ -399,6 +472,12 @@ export default function Reseller() {
                 <p className="text-2xl font-bold text-slate-100">{formatBytes(stats.total_bandwidth)}</p>
                 <p className="text-xs text-slate-500 mt-1">Total Bandwidth</p>
               </div>
+              {stats.gbps_pool > 0 && (
+                <div className="glass rounded-xl p-5">
+                  <p className="text-2xl font-bold text-cyan-400">{(stats.gbps_pool / 1000).toFixed(0)}<span className="text-sm text-slate-500 font-normal"> Gbps pool</span></p>
+                  <p className="text-xs text-slate-500 mt-1">Used: {((stats.gbps_allocated || 0) / 1000).toFixed(1)} Gbps</p>
+                </div>
+              )}
             </div>
           </div>
         )}

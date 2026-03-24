@@ -49,6 +49,9 @@ async function autoHealthCheck() {
 setTimeout(autoHealthCheck, 10000);
 setInterval(autoHealthCheck, 3 * 60 * 1000);
 
+// Expire subscriptions every minute
+setInterval(() => { try { db.expireSubscriptions(); } catch {} }, 60 * 1000);
+
 const ERROR_PAGE = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Backend Unavailable - ProxyXPass</title>
@@ -223,10 +226,11 @@ app.use((req, res, next) => {
       return res.end(JSON.stringify({ error: 'Streaming is not enabled for this proxy. Contact admin to enable Stream Proxy mode.' }));
     }
 
-    if (record.stream_proxy === 2 && record.bandwidth_limit > 0) {
-      if (!checkBandwidthLimit(record.id, record.bandwidth_limit)) {
+    if (record.stream_proxy === 2) {
+      const speedLimit = record.speed_limit_mbps || record.bandwidth_limit || 0;
+      if (speedLimit > 0 && !checkBandwidthLimit(record.id, speedLimit)) {
         res.writeHead(429, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Bandwidth limit exceeded.' }));
+        return res.end(JSON.stringify({ error: 'Speed limit reached. Your plan allows ' + speedLimit + ' Mbps.' }));
       }
     }
 

@@ -36,6 +36,7 @@ router.post('/validate-proxy', (req, res) => {
         proxy_domain: proxy.proxy_domain,
         requests_count: proxy.requests_count,
         ip_lock: proxy.ip_lock || null,
+        speed_limit_mbps: proxy.speed_limit_mbps || 0,
       },
     });
   } catch (err) {

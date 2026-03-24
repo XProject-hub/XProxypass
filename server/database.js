@@ -137,6 +137,67 @@ db.exec(`
   );
 `);
 
+// Gbps streaming plans
+try { db.exec('ALTER TABLE users ADD COLUMN gbps_pool INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN gbps_allocated INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE proxies ADD COLUMN speed_limit_mbps INTEGER DEFAULT 0'); } catch {}
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS stream_plans (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL,
+    speed_mbps INTEGER NOT NULL,
+    price_eur REAL NOT NULL,
+    is_active INTEGER DEFAULT 1,
+    description TEXT,
+    paypal_plan_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    plan_id INTEGER NOT NULL,
+    paypal_subscription_id TEXT,
+    status TEXT DEFAULT 'pending',
+    speed_mbps INTEGER NOT NULL,
+    plan_type TEXT NOT NULL,
+    started_at DATETIME,
+    expires_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (plan_id) REFERENCES stream_plans(id)
+  );
+`);
+
+// Seed default stream plans
+const DEFAULT_PLANS = [
+  { name: 'Streaming 1Gbps', type: 'streaming', speed_mbps: 1000, price_eur: 99, description: '1 Gbps fair use streaming' },
+  { name: 'Streaming 2Gbps', type: 'streaming', speed_mbps: 2000, price_eur: 179, description: '2 Gbps fair use streaming' },
+  { name: 'Streaming 3Gbps', type: 'streaming', speed_mbps: 3000, price_eur: 249, description: '3 Gbps fair use streaming' },
+  { name: 'Streaming 5Gbps', type: 'streaming', speed_mbps: 5000, price_eur: 399, description: '5 Gbps fair use streaming' },
+  { name: 'Enterprise 1Gbps', type: 'enterprise', speed_mbps: 1000, price_eur: 249, description: '1 Gbps dedicated, no throttle' },
+  { name: 'Enterprise 2Gbps', type: 'enterprise', speed_mbps: 2000, price_eur: 399, description: '2 Gbps dedicated, no throttle' },
+  { name: 'Enterprise 3Gbps', type: 'enterprise', speed_mbps: 3000, price_eur: 599, description: '3 Gbps dedicated, no throttle' },
+  { name: 'Enterprise 5Gbps', type: 'enterprise', speed_mbps: 5000, price_eur: 999, description: '5 Gbps dedicated, no throttle' },
+  { name: 'Reseller 5Gbps', type: 'reseller', speed_mbps: 5000, price_eur: 399, description: '5 Gbps pool for resellers' },
+  { name: 'Reseller 10Gbps', type: 'reseller', speed_mbps: 10000, price_eur: 699, description: '10 Gbps pool for resellers' },
+  { name: 'Reseller 20Gbps', type: 'reseller', speed_mbps: 20000, price_eur: 1199, description: '20 Gbps pool for resellers' },
+  { name: 'Reseller 50Gbps', type: 'reseller', speed_mbps: 50000, price_eur: 2499, description: '50 Gbps pool for resellers' },
+];
+
+try {
+  const existingPlans = db.prepare('SELECT COUNT(*) as count FROM stream_plans').get();
+  if (existingPlans.count === 0) {
+    const insertPlan = db.prepare('INSERT INTO stream_plans (name, type, speed_mbps, price_eur, description) VALUES (?, ?, ?, ?, ?)');
+    for (const p of DEFAULT_PLANS) {
+      insertPlan.run(p.name, p.type, p.speed_mbps, p.price_eur, p.description);
+    }
+    console.log('[DB] Seeded default stream plans');
+  }
+} catch (err) { console.error('[DB] Plan seed error:', err.message); }
+
 // Sync role column with is_admin for existing admins
 try { db.exec("UPDATE users SET role = 'admin' WHERE is_admin = 1 AND (role IS NULL OR role = 'user')"); } catch {}
 
@@ -159,7 +220,7 @@ const stmts = {
   createUser: db.prepare('INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)'),
   getUserByEmail: db.prepare('SELECT * FROM users WHERE email = ?'),
   getUserByUsername: db.prepare('SELECT * FROM users WHERE username = ?'),
-  getUserById: db.prepare('SELECT id, username, email, is_admin, credits, role, parent_id, max_proxies, max_users, max_bandwidth, created_at FROM users WHERE id = ?'),
+  getUserById: db.prepare('SELECT id, username, email, is_admin, credits, role, parent_id, max_proxies, max_users, max_bandwidth, gbps_pool, gbps_allocated, created_at FROM users WHERE id = ?'),
 
   createProxy: db.prepare('INSERT INTO proxies (user_id, subdomain, target_url, country, expires_at) VALUES (?, ?, ?, ?, ?)'),
   getProxiesByUser: db.prepare('SELECT * FROM proxies WHERE user_id = ? ORDER BY created_at DESC'),
@@ -175,7 +236,7 @@ const stmts = {
   addCredits: db.prepare('UPDATE users SET credits = credits + ? WHERE id = ?'),
   setAdmin: db.prepare('UPDATE users SET is_admin = ? WHERE id = ?'),
 
-  getAllUsers: db.prepare('SELECT id, username, email, is_admin, credits, role, parent_id, max_proxies, max_users, max_bandwidth, created_at FROM users ORDER BY created_at DESC'),
+  getAllUsers: db.prepare('SELECT id, username, email, is_admin, credits, role, parent_id, max_proxies, max_users, max_bandwidth, gbps_pool, gbps_allocated, created_at FROM users ORDER BY created_at DESC'),
   getAllProxies: db.prepare(`
     SELECT p.*, u.username as owner_username
     FROM proxies p LEFT JOIN users u ON p.user_id = u.id
@@ -273,6 +334,35 @@ const stmts = {
       (SELECT COALESCE(SUM(requests_count), 0) FROM proxies WHERE user_id IN (SELECT id FROM users WHERE parent_id = ?)) as total_requests,
       (SELECT COALESCE(SUM(bandwidth_used), 0) FROM proxies WHERE user_id IN (SELECT id FROM users WHERE parent_id = ?)) as total_bandwidth
   `),
+
+  // Stream plans
+  getAllStreamPlans: db.prepare('SELECT * FROM stream_plans ORDER BY type, speed_mbps'),
+  getActiveStreamPlans: db.prepare("SELECT * FROM stream_plans WHERE is_active = 1 ORDER BY type, speed_mbps"),
+  getStreamPlanById: db.prepare('SELECT * FROM stream_plans WHERE id = ?'),
+  createStreamPlan: db.prepare('INSERT INTO stream_plans (name, type, speed_mbps, price_eur, description) VALUES (?, ?, ?, ?, ?)'),
+  updateStreamPlan: db.prepare('UPDATE stream_plans SET name = ?, type = ?, speed_mbps = ?, price_eur = ?, description = ?, is_active = ? WHERE id = ?'),
+  updateStreamPlanPaypal: db.prepare('UPDATE stream_plans SET paypal_plan_id = ? WHERE id = ?'),
+  deleteStreamPlan: db.prepare('DELETE FROM stream_plans WHERE id = ?'),
+
+  // Subscriptions
+  createSubscription: db.prepare('INSERT INTO subscriptions (user_id, plan_id, paypal_subscription_id, status, speed_mbps, plan_type, started_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'),
+  getSubscriptionById: db.prepare('SELECT s.*, sp.name as plan_name, sp.price_eur, u.username FROM subscriptions s JOIN stream_plans sp ON s.plan_id = sp.id JOIN users u ON s.user_id = u.id WHERE s.id = ?'),
+  getSubscriptionByPaypal: db.prepare('SELECT * FROM subscriptions WHERE paypal_subscription_id = ?'),
+  getSubscriptionsByUser: db.prepare('SELECT s.*, sp.name as plan_name, sp.price_eur FROM subscriptions s JOIN stream_plans sp ON s.plan_id = sp.id WHERE s.user_id = ? ORDER BY s.created_at DESC'),
+  getActiveSubscription: db.prepare("SELECT s.*, sp.name as plan_name, sp.price_eur FROM subscriptions s JOIN stream_plans sp ON s.plan_id = sp.id WHERE s.user_id = ? AND s.status = 'active' LIMIT 1"),
+  getAllSubscriptions: db.prepare('SELECT s.*, sp.name as plan_name, sp.price_eur, u.username FROM subscriptions s JOIN stream_plans sp ON s.plan_id = sp.id JOIN users u ON s.user_id = u.id ORDER BY s.created_at DESC'),
+  updateSubscriptionStatus: db.prepare('UPDATE subscriptions SET status = ? WHERE id = ?'),
+  updateSubscriptionPaypal: db.prepare('UPDATE subscriptions SET paypal_subscription_id = ?, status = ? WHERE id = ?'),
+  activateSubscription: db.prepare("UPDATE subscriptions SET status = 'active', started_at = CURRENT_TIMESTAMP, expires_at = datetime('now', '+30 days') WHERE id = ?"),
+  renewSubscription: db.prepare("UPDATE subscriptions SET expires_at = datetime(expires_at, '+30 days'), status = 'active' WHERE id = ?"),
+  expireSubscriptions: db.prepare("UPDATE subscriptions SET status = 'expired' WHERE status = 'active' AND expires_at < CURRENT_TIMESTAMP"),
+
+  // Speed limit on proxies
+  setProxySpeedLimit: db.prepare('UPDATE proxies SET speed_limit_mbps = ? WHERE id = ?'),
+
+  // Gbps pool
+  setGbpsPool: db.prepare('UPDATE users SET gbps_pool = ? WHERE id = ?'),
+  setGbpsAllocated: db.prepare('UPDATE users SET gbps_allocated = ? WHERE id = ?'),
 };
 
 module.exports = {
@@ -368,4 +458,35 @@ module.exports = {
   countProxiesByParent(parentId) { return stmts.countProxiesByParent.get(parentId).count; },
   getStreamRequestsByParent(parentId) { return stmts.getStreamRequestsByParent.all(parentId); },
   getResellerStats(resellerId) { return stmts.getResellerStats.get(resellerId, resellerId, resellerId, resellerId); },
+
+  // Stream plans
+  getAllStreamPlans() { return stmts.getAllStreamPlans.all(); },
+  getActiveStreamPlans() { return stmts.getActiveStreamPlans.all(); },
+  getStreamPlanById(id) { return stmts.getStreamPlanById.get(id); },
+  createStreamPlan(name, type, speedMbps, priceEur, description) { return stmts.createStreamPlan.run(name, type, speedMbps, priceEur, description || null); },
+  updateStreamPlan(id, name, type, speedMbps, priceEur, description, isActive) { return stmts.updateStreamPlan.run(name, type, speedMbps, priceEur, description || null, isActive, id); },
+  updateStreamPlanPaypal(id, paypalPlanId) { return stmts.updateStreamPlanPaypal.run(paypalPlanId, id); },
+  deleteStreamPlan(id) { return stmts.deleteStreamPlan.run(id); },
+
+  // Subscriptions
+  createSubscription(userId, planId, paypalSubId, status, speedMbps, planType, startedAt, expiresAt) {
+    return stmts.createSubscription.run(userId, planId, paypalSubId || null, status, speedMbps, planType, startedAt || null, expiresAt || null);
+  },
+  getSubscriptionById(id) { return stmts.getSubscriptionById.get(id); },
+  getSubscriptionByPaypal(paypalSubId) { return stmts.getSubscriptionByPaypal.get(paypalSubId); },
+  getSubscriptionsByUser(userId) { return stmts.getSubscriptionsByUser.all(userId); },
+  getActiveSubscription(userId) { return stmts.getActiveSubscription.get(userId); },
+  getAllSubscriptions() { return stmts.getAllSubscriptions.all(); },
+  updateSubscriptionStatus(id, status) { return stmts.updateSubscriptionStatus.run(status, id); },
+  updateSubscriptionPaypal(id, paypalSubId, status) { return stmts.updateSubscriptionPaypal.run(paypalSubId, status, id); },
+  activateSubscription(id) { return stmts.activateSubscription.run(id); },
+  renewSubscription(id) { return stmts.renewSubscription.run(id); },
+  expireSubscriptions() { return stmts.expireSubscriptions.run(); },
+
+  // Speed limit
+  setProxySpeedLimit(id, speedMbps) { return stmts.setProxySpeedLimit.run(speedMbps, id); },
+
+  // Gbps pool
+  setGbpsPool(userId, poolMbps) { return stmts.setGbpsPool.run(poolMbps, userId); },
+  setGbpsAllocated(userId, allocatedMbps) { return stmts.setGbpsAllocated.run(allocatedMbps, userId); },
 };
