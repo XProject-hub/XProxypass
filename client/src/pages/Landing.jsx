@@ -318,65 +318,103 @@ export default function Landing() {
             <h3 className="text-xl font-bold text-slate-200 mb-2 text-center">
               <span className="text-amber-400">Enterprise</span>
             </h3>
-            <p className="text-sm text-slate-500 mb-6 text-center">Dedicated bandwidth, no throttling, priority routing, premium support.</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <p className="text-sm text-slate-500 mb-6 text-center">Dedicated bandwidth, no throttling, priority routing, premium support. 1 to 50 Gbps.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
               {[
                 { speed: '1', price: '249' },
-                { speed: '2', price: '399', popular: true },
-                { speed: '3', price: '599' },
+                { speed: '2', price: '399' },
+                { speed: '3', price: '599', popular: true },
                 { speed: '5', price: '999' },
+                { speed: '10', price: '1,799' },
               ].map((plan) => (
-                <div key={plan.speed} className={`glass rounded-2xl p-6 text-center glass-hover relative ${plan.popular ? 'border-amber-500/20' : ''}`}>
+                <div key={plan.speed} className={`glass rounded-2xl p-5 text-center glass-hover relative ${plan.popular ? 'border-amber-500/20' : ''}`}>
                   {plan.popular && (
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-amber-500 to-orange-500 text-white">
                       Popular
                     </div>
                   )}
-                  <h3 className="text-2xl font-bold text-slate-100 mt-2 mb-1">{plan.speed} Gbps</h3>
+                  <h3 className="text-xl font-bold text-slate-100 mt-2 mb-1">{plan.speed} Gbps</h3>
                   <div className="mb-1">
-                    <span className="text-3xl font-bold text-amber-400">&euro;{plan.price}</span>
-                    <span className="text-sm text-slate-500">/mo</span>
+                    <span className="text-2xl font-bold text-amber-400">&euro;{plan.price}</span>
+                    <span className="text-xs text-slate-500">/mo</span>
                   </div>
-                  <p className="text-xs text-slate-500 mb-4">Dedicated bandwidth</p>
-                  <ul className="text-left mb-5 space-y-1.5 px-2">
-                    {['No throttling', 'Priority routing', 'Premium support', 'Dedicated resources'].map((f, i) => (
-                      <li key={i} className="flex items-center gap-2 text-xs text-slate-400">
-                        <span className="w-1 h-1 rounded-full bg-amber-400 flex-shrink-0" /> {f}
-                      </li>
-                    ))}
-                  </ul>
-                  <Link to="/register" className={`w-full inline-flex items-center justify-center py-2.5 rounded-lg text-sm font-medium transition-all ${plan.popular ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:opacity-90' : 'btn-secondary'}`}>
+                  <p className="text-[10px] text-slate-500 mb-3">Dedicated</p>
+                  <Link to="/register" className={`w-full inline-flex items-center justify-center py-2 rounded-lg text-xs font-medium transition-all ${plan.popular ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:opacity-90' : 'btn-secondary'}`}>
                     Subscribe
                   </Link>
                 </div>
               ))}
             </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mt-4 max-w-4xl mx-auto">
+              {[
+                { speed: '20', price: '3,199' },
+                { speed: '30', price: '4,499' },
+                { speed: '40', price: '5,799' },
+                { speed: '50', price: '6,999' },
+              ].map((plan) => (
+                <div key={plan.speed} className="glass rounded-2xl p-5 text-center glass-hover">
+                  <h3 className="text-xl font-bold text-slate-100 mb-1">{plan.speed} Gbps</h3>
+                  <div className="mb-1">
+                    <span className="text-2xl font-bold text-amber-400">&euro;{plan.price}</span>
+                    <span className="text-xs text-slate-500">/mo</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mb-3">Dedicated</p>
+                  <Link to="/register" className="w-full inline-flex items-center justify-center py-2 rounded-lg text-xs font-medium transition-all btn-secondary">
+                    Subscribe
+                  </Link>
+                </div>
+              ))}
+            </div>
+            <div className="glass rounded-lg p-4 mt-4 max-w-2xl mx-auto">
+              <ul className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                {['No throttling', 'Priority routing', 'Premium support', 'Dedicated resources'].map((f, i) => (
+                  <li key={i} className="text-xs text-slate-400 flex items-center justify-center gap-1.5">
+                    <span className="w-1 h-1 rounded-full bg-amber-400" /> {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
 
           {/* Reseller */}
-          <div className="glass rounded-xl p-8 max-w-3xl mx-auto border-purple-500/10">
-            <div className="text-center">
-              <p className="text-lg font-bold text-purple-400 mb-2">Reseller Program</p>
-              <p className="text-sm text-slate-400 mb-4">
-                Buy a Gbps pool and distribute bandwidth to your sub-users. Full reseller panel with user management, 
-                credit distribution, and stream approvals.
-              </p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-                {[
-                  { pool: '5', price: '399' },
-                  { pool: '10', price: '699' },
-                  { pool: '20', price: '1,199' },
-                  { pool: '50', price: '2,499' },
-                ].map(r => (
-                  <div key={r.pool} className="glass rounded-lg p-3">
-                    <p className="text-lg font-bold text-purple-400">{r.pool} Gbps</p>
-                    <p className="text-sm text-slate-400">&euro;{r.price}/mo</p>
+          <div className="mb-8">
+            <h3 className="text-xl font-bold text-slate-200 mb-2 text-center">
+              <span className="text-purple-400">Reseller Program</span>
+            </h3>
+            <p className="text-sm text-slate-500 mb-6 text-center">
+              Buy a Gbps pool and distribute bandwidth to your sub-users. Full management panel included.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              {[
+                { pool: '5', price: '399', users: '~25', desc: 'Small reseller' },
+                { pool: '10', price: '699', users: '~50', desc: 'Growing business', popular: true },
+                { pool: '20', price: '1,199', users: '~100', desc: 'Established reseller' },
+                { pool: '50', price: '2,499', users: '~250', desc: 'Large operation' },
+              ].map((plan) => (
+                <div key={plan.pool} className={`glass rounded-2xl p-6 text-center glass-hover relative ${plan.popular ? 'border-purple-500/20' : ''}`}>
+                  {plan.popular && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-purple-500 to-pink-500 text-white">
+                      Popular
+                    </div>
+                  )}
+                  <h3 className="text-2xl font-bold text-slate-100 mt-2 mb-1">{plan.pool} Gbps</h3>
+                  <div className="mb-1">
+                    <span className="text-3xl font-bold text-purple-400">&euro;{plan.price}</span>
+                    <span className="text-sm text-slate-500">/mo</span>
                   </div>
-                ))}
-              </div>
-              <Link to="/register" className="btn-secondary text-sm inline-flex items-center gap-2" style={{ padding: '0.6rem 1.5rem' }}>
-                Become a Reseller
-              </Link>
+                  <p className="text-xs text-slate-500 mb-4">{plan.desc} ({plan.users} users)</p>
+                  <ul className="text-left mb-5 space-y-1.5 px-2">
+                    {['Gbps pool allocation', 'Sub-user management', 'Stream approvals', 'Credit distribution'].map((f, i) => (
+                      <li key={i} className="flex items-center gap-2 text-xs text-slate-400">
+                        <span className="w-1 h-1 rounded-full bg-purple-400 flex-shrink-0" /> {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <Link to="/register" className={`w-full inline-flex items-center justify-center py-2.5 rounded-lg text-sm font-medium transition-all ${plan.popular ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90' : 'btn-secondary'}`}>
+                    Become Reseller
+                  </Link>
+                </div>
+              ))}
             </div>
           </div>
         </div>
