@@ -115,6 +115,9 @@ try { db.exec('ALTER TABLE proxy_servers ADD COLUMN ssh_port INTEGER DEFAULT 22'
 try { db.exec("ALTER TABLE proxy_servers ADD COLUMN ssh_user TEXT DEFAULT 'root'"); } catch {}
 try { db.exec('ALTER TABLE proxy_servers ADD COLUMN ssh_pass TEXT'); } catch {}
 
+// Server type (dns, stream, enterprise, all)
+try { db.exec("ALTER TABLE proxy_servers ADD COLUMN server_type TEXT DEFAULT 'all'"); } catch {}
+
 // Reseller system
 try { db.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'"); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN parent_id INTEGER DEFAULT NULL'); } catch {}
@@ -305,6 +308,8 @@ const stmts = {
   addServer: db.prepare('INSERT INTO proxy_servers (ip, port, country, label, status) VALUES (?, ?, ?, ?, ?)'),
   getAllServers: db.prepare('SELECT * FROM proxy_servers ORDER BY created_at DESC'),
   getServersByCountry: db.prepare("SELECT * FROM proxy_servers WHERE country = ? AND status = 'online'"),
+  getServersByCountryAndType: db.prepare("SELECT * FROM proxy_servers WHERE country = ? AND status = 'online' AND (server_type = ? OR server_type = 'all')"),
+  updateServerType: db.prepare("UPDATE proxy_servers SET server_type = ? WHERE id = ?"),
   getServerById: db.prepare('SELECT * FROM proxy_servers WHERE id = ?'),
   updateServerStatus: db.prepare('UPDATE proxy_servers SET status = ?, last_check = CURRENT_TIMESTAMP WHERE id = ?'),
   updateServerMaxConn: db.prepare('UPDATE proxy_servers SET max_connections = ? WHERE id = ?'),
@@ -464,6 +469,8 @@ module.exports = {
   addServer(ip, port, country, label, status) { return stmts.addServer.run(ip, port, country, label || null, status || 'pending'); },
   getAllServers() { return stmts.getAllServers.all(); },
   getServersByCountry(country) { return stmts.getServersByCountry.all(country); },
+  getServersByCountryAndType(country, type) { return stmts.getServersByCountryAndType.all(country, type); },
+  updateServerType(id, type) { return stmts.updateServerType.run(type, id); },
   getServerById(id) { return stmts.getServerById.get(id); },
   updateServerStatus(id, status) { return stmts.updateServerStatus.run(status, id); },
   updateServerMaxConn(id, max) { return stmts.updateServerMaxConn.run(max, id); },

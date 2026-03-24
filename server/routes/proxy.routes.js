@@ -67,7 +67,8 @@ router.get('/domains', (req, res) => {
 });
 
 router.get('/countries', (req, res) => {
-  const servers = db.getAllServers().filter(s => s.status === 'online');
+  const serverType = req.query.type || 'all';
+  const servers = db.getAllServers().filter(s => s.status === 'online' && (s.server_type === serverType || s.server_type === 'all' || serverType === 'all'));
   const countryMap = {};
   const labels = {};
   for (const s of servers) {

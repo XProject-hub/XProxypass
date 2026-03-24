@@ -922,7 +922,7 @@ export default function Admin() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-white/[0.06]">
-                        {['IP', 'Country', 'Label', 'Usage', 'Max', 'Uptime', 'Status', ''].map(h => (
+                        {['IP', 'Country', 'Label', 'Type', 'Usage', 'Max', 'Uptime', 'Status', ''].map(h => (
                           <th key={h} className="text-left px-3 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
@@ -933,6 +933,20 @@ export default function Admin() {
                           <td className="px-3 py-3 text-cyan-400 font-mono text-xs">{s.ip}:{s.port}</td>
                           <td className="px-3 py-3 text-slate-300 text-xs">{s.country}</td>
                           <td className="px-3 py-3 text-slate-400 text-xs">{s.label || '-'}</td>
+                          <td className="px-3 py-3">
+                            <select value={s.server_type || 'all'} onChange={async (e) => {
+                              await fetch(`/api/admin/servers/${s.id}/server-type`, {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ type: e.target.value }),
+                              });
+                              loadData();
+                            }} className="bg-transparent border-0 text-[10px] font-semibold uppercase cursor-pointer text-slate-400">
+                              <option value="all" className="bg-[#0a0a14]">All</option>
+                              <option value="dns" className="bg-[#0a0a14]">DNS</option>
+                              <option value="stream" className="bg-[#0a0a14]">Stream</option>
+                              <option value="enterprise" className="bg-[#0a0a14]">Enterprise</option>
+                            </select>
+                          </td>
                           <td className="px-3 py-3">
                             {(() => {
                               const active = serverConns[s.id] || 0;
