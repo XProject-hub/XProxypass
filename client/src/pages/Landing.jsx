@@ -278,38 +278,61 @@ export default function Landing() {
             <h3 className="text-xl font-bold text-slate-200 mb-2 text-center">
               <span className="gradient-text">Streaming Plans</span>
             </h3>
-            <p className="text-sm text-slate-500 mb-6 text-center">IPTV & video streaming proxy with Gbps speed. Fair use with burst support.</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <p className="text-sm text-slate-500 mb-6 text-center">IPTV & video streaming proxy with Gbps speed. Fair use with burst support. 1 to 50 Gbps.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
               {[
-                { speed: '1', price: '99', desc: 'Fair use streaming' },
-                { speed: '2', price: '179', desc: 'Most popular', popular: true },
-                { speed: '3', price: '249', desc: 'High-bandwidth' },
-                { speed: '5', price: '399', desc: 'Maximum speed' },
+                { speed: '1', price: '99' },
+                { speed: '2', price: '179' },
+                { speed: '3', price: '249', popular: true },
+                { speed: '5', price: '399' },
+                { speed: '10', price: '699' },
               ].map((plan) => (
-                <div key={plan.speed} className={`glass rounded-2xl p-6 text-center glass-hover relative ${plan.popular ? 'border-cyan-500/20' : ''}`}>
+                <div key={plan.speed} className={`glass rounded-2xl p-5 text-center glass-hover relative ${plan.popular ? 'border-cyan-500/20' : ''}`}>
                   {plan.popular && (
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-cyan-500 to-blue-500 text-white">
                       Popular
                     </div>
                   )}
-                  <h3 className="text-2xl font-bold text-slate-100 mt-2 mb-1">{plan.speed} Gbps</h3>
+                  <h3 className="text-xl font-bold text-slate-100 mt-2 mb-1">{plan.speed} Gbps</h3>
                   <div className="mb-1">
-                    <span className="text-3xl font-bold gradient-text">&euro;{plan.price}</span>
-                    <span className="text-sm text-slate-500">/mo</span>
+                    <span className="text-2xl font-bold gradient-text">&euro;{plan.price}</span>
+                    <span className="text-xs text-slate-500">/mo</span>
                   </div>
-                  <p className="text-xs text-slate-500 mb-4">{plan.desc}</p>
-                  <ul className="text-left mb-5 space-y-1.5 px-2">
-                    {['M3U / Xtream Codes', 'URL rewriting', 'Burst allowed', 'Multi-port support'].map((f, i) => (
-                      <li key={i} className="flex items-center gap-2 text-xs text-slate-400">
-                        <span className="w-1 h-1 rounded-full bg-emerald-400 flex-shrink-0" /> {f}
-                      </li>
-                    ))}
-                  </ul>
-                  <Link to="/register" className={`w-full inline-flex items-center justify-center py-2.5 rounded-lg text-sm font-medium transition-all ${plan.popular ? 'btn-primary' : 'btn-secondary'}`}>
+                  <p className="text-[10px] text-slate-500 mb-3">Fair use</p>
+                  <Link to="/register" className={`w-full inline-flex items-center justify-center py-2 rounded-lg text-xs font-medium transition-all ${plan.popular ? 'btn-primary' : 'btn-secondary'}`}>
                     Subscribe
                   </Link>
                 </div>
               ))}
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mt-4 max-w-4xl mx-auto">
+              {[
+                { speed: '20', price: '1,299' },
+                { speed: '30', price: '1,799' },
+                { speed: '40', price: '2,299' },
+                { speed: '50', price: '2,799' },
+              ].map((plan) => (
+                <div key={plan.speed} className="glass rounded-2xl p-5 text-center glass-hover">
+                  <h3 className="text-xl font-bold text-slate-100 mb-1">{plan.speed} Gbps</h3>
+                  <div className="mb-1">
+                    <span className="text-2xl font-bold gradient-text">&euro;{plan.price}</span>
+                    <span className="text-xs text-slate-500">/mo</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mb-3">Fair use</p>
+                  <Link to="/register" className="w-full inline-flex items-center justify-center py-2 rounded-lg text-xs font-medium transition-all btn-secondary">
+                    Subscribe
+                  </Link>
+                </div>
+              ))}
+            </div>
+            <div className="glass rounded-lg p-4 mt-4 max-w-2xl mx-auto">
+              <ul className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                {['M3U / Xtream Codes', 'URL rewriting', 'Burst allowed', 'Multi-port support'].map((f, i) => (
+                  <li key={i} className="text-xs text-slate-400 flex items-center justify-center gap-1.5">
+                    <span className="w-1 h-1 rounded-full bg-emerald-400" /> {f}
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
 
