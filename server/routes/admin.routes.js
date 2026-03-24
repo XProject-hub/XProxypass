@@ -422,7 +422,7 @@ router.post('/servers/:id/restart', async (req, res) => {
   try {
     const server = db.getServerById(req.params.id);
     if (!server) return res.status(404).json({ error: 'Server not found' });
-    const output = await sshCommand(server, 'systemctl kill squid 2>/dev/null; systemctl start squid && echo restarted');
+    const output = await sshCommand(server, 'systemctl restart squid; sleep 3; systemctl is-active squid && echo restarted || echo failed');
     db.updateServerStatus(server.id, 'online');
     db.addActivityLog(req.user.id, req.user.username, req.ip, 'Server', 'Restart', `${server.ip}: Squid restarted`);
     res.json({ message: 'Squid restarted', output });
