@@ -132,6 +132,7 @@ setInterval(async () => {
     await masterAPI('/api/node/report-stats', {
       connections: activeConnections,
       bandwidth: bandwidthTotal,
+      bandwidth_live: { ...bandwidthPerSecond },
     });
     for (const id in bandwidthTotal) bandwidthTotal[id] = 0;
   } catch {}

@@ -4,6 +4,10 @@ const config = require('../config');
 
 const router = express.Router();
 
+const nodeStats = {};
+
+function getNodeStats() { return nodeStats; }
+
 function authenticateNode(req, res, next) {
   const secret = req.headers['x-node-secret'];
   if (!secret || secret !== config.nodeSecret) {
@@ -47,7 +51,7 @@ router.post('/validate-proxy', (req, res) => {
 
 router.post('/report-stats', (req, res) => {
   try {
-    const { connections, bandwidth } = req.body;
+    const { connections, bandwidth, bandwidth_live } = req.body;
     const nodeId = req.headers['x-node-id'];
 
     if (bandwidth) {
@@ -56,6 +60,24 @@ router.post('/report-stats', (req, res) => {
           try { db.addBandwidth(bytes, parseInt(proxyId)); } catch {}
           try { db.incrementRequests(parseInt(proxyId)); } catch {}
         }
+      }
+    }
+
+    if (connections) {
+      for (const [proxyId, count] of Object.entries(connections)) {
+        nodeStats[`conn_${proxyId}`] = count;
+      }
+    }
+    if (bandwidth_live) {
+      for (const [proxyId, bps] of Object.entries(bandwidth_live)) {
+        nodeStats[`bw_${proxyId}`] = bps;
+      }
+    }
+    if (nodeId) {
+      nodeStats[`node_${nodeId}_time`] = Date.now();
+      if (connections) {
+        const totalConns = Object.values(connections).reduce((s, v) => s + v, 0);
+        nodeStats[`node_${nodeId}_conns`] = totalConns;
       }
     }
 
@@ -85,3 +107,4 @@ router.post('/increment-requests', (req, res) => {
 });
 
 module.exports = router;
+module.exports.getNodeStats = getNodeStats;

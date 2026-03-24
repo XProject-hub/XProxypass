@@ -625,9 +625,15 @@ app.use('/stream/:proxySubdomain', (req, res) => {
 setInterval(() => { try { db.deleteExpiredTokens(); } catch {} }, 5 * 60 * 1000);
 
 app.get('/api/connections/:id', (req, res) => {
+  const { getNodeStats } = require('./routes/node.routes');
+  const ns = getNodeStats();
+  const localConns = activeConnections[req.params.id] || 0;
+  const nodeConns = ns[`conn_${req.params.id}`] || 0;
+  const localBw = bandwidthPerSecond[req.params.id] || 0;
+  const nodeBw = ns[`bw_${req.params.id}`] || 0;
   res.json({
-    connections: activeConnections[req.params.id] || 0,
-    bandwidth_mbps: ((bandwidthPerSecond[req.params.id] || 0) / 125000).toFixed(2),
+    connections: localConns + nodeConns,
+    bandwidth_mbps: ((localBw + nodeBw) / 125000).toFixed(2),
   });
 });
 
@@ -656,12 +662,27 @@ app.get('/api/node/agent-script', (req, res) => {
 });
 
 app.get('/api/server-connections', (req, res) => {
-  res.json({ servers: serverConnections, proxies: activeConnections });
+  const { getNodeStats } = require('./routes/node.routes');
+  const ns = getNodeStats();
+  const mergedProxies = { ...activeConnections };
+  for (const [key, val] of Object.entries(ns)) {
+    if (key.startsWith('conn_')) {
+      const pid = key.slice(5);
+      mergedProxies[pid] = (mergedProxies[pid] || 0) + val;
+    }
+  }
+  res.json({ servers: serverConnections, proxies: mergedProxies });
 });
 
 app.get('/api/live-stats', (req, res) => {
-  const totalActive = Object.values(activeConnections).reduce((s, v) => s + v, 0);
-  const totalBW = Object.values(bandwidthPerSecond).reduce((s, v) => s + v, 0);
+  const { getNodeStats } = require('./routes/node.routes');
+  const ns = getNodeStats();
+  let totalActive = Object.values(activeConnections).reduce((s, v) => s + v, 0);
+  let totalBW = Object.values(bandwidthPerSecond).reduce((s, v) => s + v, 0);
+  for (const [key, val] of Object.entries(ns)) {
+    if (key.startsWith('conn_')) totalActive += val;
+    if (key.startsWith('bw_')) totalBW += val;
+  }
   res.json({
     active_users: totalActive,
     bandwidth_mbps: (totalBW / 125000).toFixed(2),
@@ -726,17 +747,35 @@ io.on('connection', (socket) => {
 });
 
 setInterval(() => {
-  const totalActiveUsers = Object.values(activeConnections).reduce((s, v) => s + v, 0);
-  const totalBandwidthBytes = Object.values(bandwidthPerSecond).reduce((s, v) => s + v, 0);
+  const { getNodeStats } = require('./routes/node.routes');
+  const ns = getNodeStats();
+
+  let totalActiveUsers = Object.values(activeConnections).reduce((s, v) => s + v, 0);
+  let totalBandwidthBytes = Object.values(bandwidthPerSecond).reduce((s, v) => s + v, 0);
+
+  const mergedConns = { ...activeConnections };
+  const mergedBw = { ...bandwidthPerSecond };
+  for (const [key, val] of Object.entries(ns)) {
+    if (key.startsWith('conn_')) {
+      const pid = key.slice(5);
+      mergedConns[pid] = (mergedConns[pid] || 0) + val;
+      totalActiveUsers += val;
+    }
+    if (key.startsWith('bw_')) {
+      const pid = key.slice(3);
+      mergedBw[pid] = (mergedBw[pid] || 0) + val;
+      totalBandwidthBytes += val;
+    }
+  }
 
   io.to('dashboard').emit('stats', {
     active_users: totalActiveUsers,
     bandwidth_mbps: (totalBandwidthBytes / 125000).toFixed(2),
     requests_per_sec: globalRequestsPerSec,
     server_connections: serverConnections,
-    proxy_connections: activeConnections,
+    proxy_connections: mergedConns,
     proxy_bandwidth: Object.fromEntries(
-      Object.entries(bandwidthPerSecond).map(([k, v]) => [k, (v / 125000).toFixed(2)])
+      Object.entries(mergedBw).map(([k, v]) => [k, (v / 125000).toFixed(2)])
     ),
   });
 }, 2000);
