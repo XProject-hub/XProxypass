@@ -13,4 +13,6 @@ module.exports = {
   cloudflareToken: process.env.CLOUDFLARE_TOKEN || '',
   cloudflareZoneId: process.env.CLOUDFLARE_ZONE_ID || '',
   paypalWebhookId: process.env.PAYPAL_WEBHOOK_ID || '',
+  nowpaymentsApiKey: process.env.NOWPAYMENTS_API_KEY || '',
+  nowpaymentsIpnSecret: process.env.NOWPAYMENTS_IPN_SECRET || '',
 };

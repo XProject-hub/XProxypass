@@ -22,6 +22,7 @@ const adminRoutes = require('./routes/admin.routes');
 const paypalRoutes = require('./routes/paypal.routes');
 const nodeRoutes = require('./routes/node.routes');
 const resellerRoutes = require('./routes/reseller.routes');
+const cryptoRoutes = require('./routes/crypto.routes');
 
 const app = express();
 const proxy = httpProxy.createProxyServer({ xfwd: true });
@@ -629,6 +630,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/paypal', paypalRoutes);
 app.use('/api/node', nodeRoutes);
 app.use('/api/reseller', resellerRoutes);
+app.use('/api/crypto', cryptoRoutes);
 
 app.get('/api/node/agent-script', (req, res) => {
   const secret = req.headers['x-node-secret'];

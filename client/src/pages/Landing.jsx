@@ -440,6 +440,13 @@ export default function Landing() {
               ))}
             </div>
           </div>
+
+          {/* Payment Methods */}
+          <div className="glass rounded-lg p-4 mt-8 max-w-md mx-auto">
+            <p className="text-center text-sm text-slate-400">
+              <span className="text-slate-300 font-medium">Payment Methods:</span> PayPal, Credit Card, BTC, ETH, USDT + 300 cryptocurrencies
+            </p>
+          </div>
         </div>
       </section>
 

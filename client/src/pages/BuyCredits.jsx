@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { ArrowLeft, CreditCard, Check, Loader2, ExternalLink, ShoppingCart, Zap, Shield, Users } from 'lucide-react';
+import { ArrowLeft, CreditCard, Check, Loader2, ExternalLink, ShoppingCart, Zap, Shield, Users, Bitcoin } from 'lucide-react';
 
 export default function BuyCredits() {
   const [packages, setPackages] = useState([]);
@@ -28,7 +28,6 @@ export default function BuyCredits() {
     }
     if (params.get('subscription') === 'success') {
       setViewSection('streaming');
-      const planId = params.get('plan_id');
       const subId = params.get('subscription_id');
       if (subId) {
         fetch('/api/paypal/activate-subscription', {
@@ -38,6 +37,27 @@ export default function BuyCredits() {
           if (d.subscription) setActiveSub(d.subscription);
         }).catch(() => {});
       }
+    }
+    if (params.get('crypto') === 'success') {
+      const orderId = params.get('order');
+      if (orderId) {
+        const pollStatus = () => {
+          fetch(`/api/crypto/payment-status/${orderId}`).then(r => r.json()).then(d => {
+            if (d.payment?.status === 'finished' || d.payment?.status === 'confirmed') {
+              setSuccess({ credits_added: 0, new_balance: 0 });
+              fetch('/api/auth/me').then(r => r.json()).then(u => setCredits(u.user?.credits || 0));
+              fetch('/api/paypal/my-subscription').then(r => r.json()).then(d => setActiveSub(d.active));
+              window.history.replaceState({}, '', '/dashboard/buy');
+            }
+          }).catch(() => {});
+        };
+        pollStatus();
+        const pollInterval = setInterval(pollStatus, 10000);
+        setTimeout(() => clearInterval(pollInterval), 300000);
+      }
+    }
+    if (params.get('crypto') === 'cancelled') {
+      setError('Crypto payment was cancelled.');
     }
   }, []);
 
@@ -124,6 +144,50 @@ export default function BuyCredits() {
       const res = await fetch('/api/paypal/cancel-subscription', { method: 'POST' });
       if (res.ok) { setActiveSub(null); }
     } catch {}
+  };
+
+  const handleCryptoBuy = async (pkg) => {
+    setError('');
+    setProcessing(`crypto-${pkg.id}`);
+    try {
+      const res = await fetch('/api/crypto/create-invoice', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ package_id: pkg.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error); setProcessing(null); return; }
+      if (data.invoice_url) {
+        window.location.href = data.invoice_url;
+      } else {
+        setError('Crypto checkout not available');
+        setProcessing(null);
+      }
+    } catch {
+      setError('Connection error');
+      setProcessing(null);
+    }
+  };
+
+  const handleCryptoSubscribe = async (plan) => {
+    setError('');
+    setProcessing(`crypto-sub-${plan.id}`);
+    try {
+      const res = await fetch('/api/crypto/create-subscription-invoice', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan_id: plan.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error); setProcessing(null); return; }
+      if (data.invoice_url) {
+        window.location.href = data.invoice_url;
+      } else {
+        setError('Crypto checkout not available');
+        setProcessing(null);
+      }
+    } catch {
+      setError('Connection error');
+      setProcessing(null);
+    }
   };
 
   const PLAN_FEATURES = {
@@ -229,18 +293,17 @@ export default function BuyCredits() {
                   <span className="text-3xl font-bold gradient-text">&euro;{pkg.price}</span>
                 </div>
                 <p className="text-sm text-cyan-400/60 mb-1">{pkg.credits} credit{pkg.credits > 1 ? 's' : ''}</p>
-                <p className="text-[10px] text-slate-600 mb-5">&euro;{(parseFloat(pkg.price) / pkg.credits).toFixed(2)} per credit</p>
-                <button
-                  onClick={() => handleBuy(pkg)}
-                  disabled={processing !== null}
-                  className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all disabled:opacity-50 ${pkg.id === 'pro' ? 'btn-primary' : 'btn-secondary'}`}
-                >
-                  {processing === pkg.id ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <><ShoppingCart className="w-4 h-4" /> Buy</>
-                  )}
-                </button>
+                <p className="text-[10px] text-slate-600 mb-4">&euro;{(parseFloat(pkg.price) / pkg.credits).toFixed(2)} per credit</p>
+                <div className="space-y-2">
+                  <button onClick={() => handleBuy(pkg)} disabled={processing !== null}
+                    className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 ${pkg.id === 'pro' ? 'btn-primary' : 'btn-secondary'}`}>
+                    {processing === pkg.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <><ShoppingCart className="w-4 h-4" /> PayPal</>}
+                  </button>
+                  <button onClick={() => handleCryptoBuy(pkg)} disabled={processing !== null}
+                    className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all disabled:opacity-50 bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20">
+                    {processing === `crypto-${pkg.id}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Bitcoin className="w-3.5 h-3.5" /> Crypto</>}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -292,17 +355,19 @@ export default function BuyCredits() {
                       </li>
                     ))}
                   </ul>
-                  <button
-                    onClick={() => handleSubscribe(plan)}
-                    disabled={processing !== null || !!activeSub}
-                    className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all disabled:opacity-50 ${idx === 1 ? 'btn-primary' : 'btn-secondary'}`}
-                  >
-                    {processing === `sub-${plan.id}` ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : activeSub ? 'Active Plan' : (
-                      <><Zap className="w-4 h-4" /> Subscribe</>
+                  <div className="space-y-2">
+                    <button onClick={() => handleSubscribe(plan)} disabled={processing !== null || !!activeSub}
+                      className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 ${idx === 1 ? 'btn-primary' : 'btn-secondary'}`}>
+                      {processing === `sub-${plan.id}` ? <Loader2 className="w-4 h-4 animate-spin" /> :
+                        activeSub ? 'Active Plan' : <><Zap className="w-4 h-4" /> PayPal</>}
+                    </button>
+                    {!activeSub && (
+                      <button onClick={() => handleCryptoSubscribe(plan)} disabled={processing !== null}
+                        className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all disabled:opacity-50 bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20">
+                        {processing === `crypto-sub-${plan.id}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Bitcoin className="w-3.5 h-3.5" /> Crypto</>}
+                      </button>
                     )}
-                  </button>
+                  </div>
                 </div>
               ))}
             </div>

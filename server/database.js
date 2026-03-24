@@ -208,6 +208,26 @@ try {
   }
 } catch (err) { console.error('[DB] Plan seed error:', err.message); }
 
+// Crypto payments
+db.exec(`
+  CREATE TABLE IF NOT EXISTS crypto_payments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    nowpayments_id TEXT,
+    invoice_id TEXT,
+    type TEXT NOT NULL,
+    package_id TEXT,
+    plan_id INTEGER,
+    amount_eur REAL NOT NULL,
+    status TEXT DEFAULT 'pending',
+    pay_currency TEXT,
+    pay_amount REAL,
+    order_id TEXT UNIQUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+`);
+
 // Sync role column with is_admin for existing admins
 try { db.exec("UPDATE users SET role = 'admin' WHERE is_admin = 1 AND (role IS NULL OR role = 'user')"); } catch {}
 
@@ -373,6 +393,14 @@ const stmts = {
   // Gbps pool
   setGbpsPool: db.prepare('UPDATE users SET gbps_pool = ? WHERE id = ?'),
   setGbpsAllocated: db.prepare('UPDATE users SET gbps_allocated = ? WHERE id = ?'),
+
+  // Crypto payments
+  createCryptoPayment: db.prepare('INSERT INTO crypto_payments (user_id, type, package_id, plan_id, amount_eur, order_id) VALUES (?, ?, ?, ?, ?, ?)'),
+  getCryptoPaymentByOrderId: db.prepare('SELECT * FROM crypto_payments WHERE order_id = ?'),
+  getCryptoPaymentById: db.prepare('SELECT * FROM crypto_payments WHERE id = ?'),
+  updateCryptoPayment: db.prepare('UPDATE crypto_payments SET nowpayments_id = ?, invoice_id = ?, status = ?, pay_currency = ?, pay_amount = ? WHERE id = ?'),
+  updateCryptoPaymentStatus: db.prepare('UPDATE crypto_payments SET status = ? WHERE order_id = ?'),
+  getCryptoPaymentsByUser: db.prepare('SELECT * FROM crypto_payments WHERE user_id = ? ORDER BY created_at DESC LIMIT 50'),
 };
 
 module.exports = {
@@ -499,4 +527,16 @@ module.exports = {
   // Gbps pool
   setGbpsPool(userId, poolMbps) { return stmts.setGbpsPool.run(poolMbps, userId); },
   setGbpsAllocated(userId, allocatedMbps) { return stmts.setGbpsAllocated.run(allocatedMbps, userId); },
+
+  // Crypto payments
+  createCryptoPayment(userId, type, packageId, planId, amountEur, orderId) {
+    return stmts.createCryptoPayment.run(userId, type, packageId || null, planId || null, amountEur, orderId);
+  },
+  getCryptoPaymentByOrderId(orderId) { return stmts.getCryptoPaymentByOrderId.get(orderId); },
+  getCryptoPaymentById(id) { return stmts.getCryptoPaymentById.get(id); },
+  updateCryptoPayment(id, nowpaymentsId, invoiceId, status, payCurrency, payAmount) {
+    return stmts.updateCryptoPayment.run(nowpaymentsId || null, invoiceId || null, status, payCurrency || null, payAmount || null, id);
+  },
+  updateCryptoPaymentStatus(orderId, status) { return stmts.updateCryptoPaymentStatus.run(status, orderId); },
+  getCryptoPaymentsByUser(userId) { return stmts.getCryptoPaymentsByUser.all(userId); },
 };
