@@ -55,7 +55,13 @@ cat > package.json << 'PKGJSON'
 }
 PKGJSON
 
-npm install --production
+npm install --production 2>&1 || { echo "npm install failed, retrying..."; npm cache clean --force; npm install --production 2>&1; }
+
+# Verify http-proxy installed
+if [ ! -d "node_modules/http-proxy" ]; then
+  echo "http-proxy not found, installing directly..."
+  npm install http-proxy@1.18.1 2>&1
+fi
 
 # Download node-agent from master
 curl -sL ${masterUrl}/api/node/agent-script -H "X-Node-Secret: ${nodeSecret}" -o node-agent.js 2>/dev/null
@@ -186,8 +192,8 @@ NODE_PORT=3000
 NODE_ID=${nodeId}
 ENVFILE
 
-# Create PM2 config
-cat > ecosystem.config.js << 'PM2CONF'
+# Create PM2 config with env vars
+cat > ecosystem.config.js << PM2CONF
 module.exports = {
   apps: [{
     name: 'proxyxpass-node',
@@ -196,7 +202,13 @@ module.exports = {
     autorestart: true,
     watch: false,
     max_memory_restart: '512M',
-    env: { NODE_ENV: 'production' }
+    env: {
+      NODE_ENV: 'production',
+      MASTER_URL: '${masterUrl}',
+      NODE_SECRET: '${nodeSecret}',
+      NODE_PORT: 3000,
+      NODE_ID: '${nodeId}'
+    }
   }]
 };
 PM2CONF
