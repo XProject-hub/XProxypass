@@ -543,9 +543,11 @@ app.use('/stream/:proxySubdomain', (req, res) => {
       proxy_domain: tokenRecord.proxy_domain,
       country: tokenRecord.country,
       is_active: tokenRecord.is_active,
+      speed_limit_mbps: tokenRecord.speed_limit_mbps || 0,
     };
 
-    if (record.bandwidth_limit > 0 && !checkBandwidthLimit(record.id, record.bandwidth_limit)) {
+    const speedLimit = record.speed_limit_mbps || record.bandwidth_limit || 0;
+    if (speedLimit > 0 && !checkBandwidthLimit(record.id, speedLimit)) {
       res.writeHead(429, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ error: 'Bandwidth limit exceeded.' }));
     }
@@ -742,6 +744,9 @@ server.on('upgrade', (req, socket, head) => {
   if (result) {
     const record = db.getProxyBySubdomain(result.subdomain);
     if (record && record.is_active && !(record.expires_at && new Date(record.expires_at) < new Date())) {
+      const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || req.socket?.remoteAddress;
+      if (record.ip_lock && record.ip_lock !== clientIp) { socket.destroy(); return; }
+
       const { agent, serverId } = getProxyAgent(record.country);
       if (serverId === 'full') { socket.destroy(); return; }
       addServerConnection(serverId);

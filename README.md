@@ -1,8 +1,8 @@
 # ProxyXPass
 
-**Software-based CDN & Reverse Proxy Service**
+**Software-based CDN & Reverse Proxy Service with IPTV Streaming**
 
-Create proxy endpoints that route traffic through your own VPS servers to backend websites via subdomains. Full URL rewriting hides real server IPs. Built for web proxying and IPTV/Xtream Codes stream proxying.
+Create proxy endpoints that route traffic through your own VPS servers to backend websites via subdomains. Full URL rewriting hides real server IPs. Built for web proxying, IPTV/Xtream Codes stream proxying, and reseller infrastructure.
 
 **Website:** https://proxyxpass.com
 **Discord:** https://discord.gg/mg6q9mgA
@@ -24,26 +24,25 @@ User visits: mysite.proxyxpass.com
     -> Returns response with proxy URLs (real server IP hidden)
 ```
 
-### DNS Proxy (Regular)
+### DNS Proxy (Regular Web)
 - User creates proxy: `mysite.proxyxpass.com` -> `https://backend.com`
 - All URLs in HTML/JS/CSS responses rewritten to proxy domain
 - Location headers, Set-Cookie domains, base tags rewritten
 - CSP/HSTS headers removed to prevent blocking
 - Gzip/Brotli responses decompressed before rewriting
-- 50 Mbps auto bandwidth limit (prevents streaming abuse)
-- Streaming content (.ts, .m3u8, .mp4) blocked
+- 50 Mbps auto bandwidth limit
+- Streaming content blocked (requires Stream Proxy mode)
 
 ### Stream Proxy (IPTV/Streaming)
-- Requires admin approval
+- Gbps speed plans: 1-50 Gbps with fair use or dedicated bandwidth
 - Full URL rewriting including M3U playlists and Xtream Codes API responses
-- Xtream Codes `server_info` JSON rewritten (url, port fields)
-- `application/octet-stream` M3U responses detected and rewritten
-- Internal redirect following (302/307 redirects followed server-side)
-- All stream traffic flows through proxy (real server completely hidden)
-- Per-proxy bandwidth limiting (Mbps)
-- Real-time bandwidth tracking (flushed to DB every 5 seconds)
-- Active connection counting
-- Admin can set bandwidth limits per proxy
+- Line-by-line M3U parser with port preservation and catchup/EPG URL rewriting
+- Xtream Codes `server_info` JSON rewriting (url, port fields)
+- HLS .ts segment proxy with redirect following (302/307)
+- Internal redirect following for stream URLs
+- Per-proxy speed limiting (Gbps plan enforcement)
+- Real-time bandwidth tracking
+- Token-based stream authentication with expiry
 
 ---
 
@@ -60,92 +59,135 @@ User visits: mysite.proxyxpass.com
 - Location/Set-Cookie/Refresh header rewriting
 - CSP/HSTS/X-Frame-Options removal
 - No-cache headers on all proxy responses
-- www prefix stripping
 - Custom 502/404 error pages
+
+### IPTV / Xtream Codes Support
+- M3U playlist URL rewriting with line-by-line parser
+- Port preservation in M3U URLs (e.g., :8080, :25461)
+- Catchup/EPG URL rewriting (`catchup-source`, `tvg-url`, `url-epg`)
+- Multi-server rewriting (multiple backend servers in one M3U)
+- `player_api.php` server_info rewriting (url, port fields)
+- `get.php` M3U response rewriting
+- Internal redirect following for stream URLs (302/307)
+- HLS .ts segment proxy with redirect following
+- Channel logos preserved (CDN domains excluded from rewriting)
+- Works with Smarters Pro, TiviMate, XCIPTV, VLC, GSE Smart
+- Support for Xtream Codes API login format (server:port + username/password)
+
+### Gbps Streaming Plans
+- **Streaming Plans** (fair use): 1-50 Gbps with burst support
+- **Enterprise Plans** (dedicated): 1-50 Gbps, no throttling, priority routing
+- Speed enforcement per-proxy via `bandwidthPerSecond` 1-second rolling window
+- PayPal subscription (auto-renewing monthly)
+- Crypto payment via NOWPayments (one-time for 1 month)
+- Admin-configurable plan pricing from admin panel
+
+### Token Authentication for Streams
+- Generate time-limited tokens for stream access
+- URL format: `https://domain.com/stream/subdomain?token=xyz`
+- Token expiry enforcement
+- IP lock compatible
+- Bandwidth and speed limit enforcement on token routes
+
+### IP Lock
+- User locks proxy to their current IP address
+- All non-matching IPs get 403 (HTTP, WebSocket, and token routes)
+- Set/remove from user dashboard
+- Enforced on master server and node agents
 
 ### VPS Server Management
 - Add your own VPS servers as proxy nodes
-- Auto SSH install of Squid proxy on new servers
+- Auto SSH install of Squid proxy + Node Agent on new servers
+- Both Squid (port 3128) and Node Agent (port 3000) deployed together
 - Server controls via SSH: Start, Stop, Restart Squid, Reboot VPS
-- Server edit: change country, label, SSH password
 - Auto health check every 3 minutes (TCP check with retry)
 - Real-time server monitoring: CPU, RAM, Disk usage, uptime
-- Server and Squid uptime display (auto-refresh every 10s)
 - Max connections limit per server (load balancing)
 - Load balancing across multiple servers in same country
-- "No servers available" when all servers at capacity
-- File descriptor limits configured for Squid stability
 
 ### Multi-Port Support
 - Nginx listens on ports: 80, 443, 25461, 8080, 8880, 8443, 1935, 8000-8082, 9981-9982
 - IPTV apps can connect using original port (e.g., `proxyxpass.com:25461`)
 - SSL on port 443, non-SSL on all other ports
 
-### IPTV / Xtream Codes Support
-- M3U playlist URL rewriting (`application/octet-stream` detection)
-- `player_api.php` server_info rewriting (url, port fields)
-- `get.php` M3U response rewriting
-- Internal redirect following for stream URLs (302/307)
-- Channel logos preserved (CDN domains excluded from rewriting)
-- Works with Smarters Pro, TiviMate, XCIPTV, VLC
-- Support for Xtream Codes API login format (server:port + username/password)
+### Payment System
+- **PayPal** - Credit packages (one-time) + Subscription plans (monthly auto-renew)
+- **Crypto** - NOWPayments integration: BTC, ETH, USDT (TRC20) + 300 cryptocurrencies
+- Credit packages: Starter (1/7EUR), Basic (5/30EUR), Pro (10/50EUR), Business (25/100EUR)
+- Streaming plans: 1-50 Gbps (99-2799 EUR/month)
+- Enterprise plans: 1-50 Gbps (249-6999 EUR/month)
+- IPN webhook for crypto with HMAC-SHA512 verification
+- PayPal webhook for subscription lifecycle events
 
-### Stream Proxy Mode
-- User requests stream proxy mode from dashboard
-- Admin approves/denies in admin panel
-- URL rewriting for ALL external URLs in responses
-- Image/CDN domains excluded (png, jpg, m3uassets.com, etc.)
-- Per-proxy bandwidth limit (Mbps) with save button
-- Real-time stats: Connections, Mbps Live, Total Used
-- Bandwidth bar with percentage of limit
-- Admin can revoke stream proxy access
-- Streaming blocked on regular proxies (403 error)
+### Reseller System
+- Reseller role with sub-user management
+- Gbps pool allocation: buy pool (5-50 Gbps), distribute to sub-users
+- Reseller pools: 5 Gbps (399 EUR), 10 Gbps (699 EUR), 20 Gbps (1199 EUR), 50 Gbps (2499 EUR)
+- Sub-user creation with credit transfer from reseller balance
+- Stream proxy approval/denial for sub-users
+- Per-proxy speed allocation from pool
+- Bandwidth limit management
+- Reseller statistics dashboard
+- Auto-role assignment on reseller plan purchase
 
 ### Credit System
-- EUR pricing with PayPal integration (REST API v2)
-- Credit packages: Starter (1/7EUR), Basic (5/30EUR), Pro (10/50EUR), Business (25/100EUR)
+- EUR pricing with PayPal + Crypto
 - Validity options: 1 month (1 credit), 3 months (2), 6 months (4), 12 months (6)
 - Proxy renewal - extend duration, time added on top of remaining
-- Admin gives credits manually or user buys via PayPal
-- Admin is exempt from credit charges
+- Admin gives credits manually or user buys
+- Admin exempt from credit charges
 - Full credit transaction history log
-- Stream proxy custom pricing via Discord contact
 
 ### Admin Panel (sidebar navigation)
 - **Proxies** - All proxies with subdomain, target, owner, live connections, bandwidth used, requests, status (auto-refresh 5s)
-- **Users** - All users, create user manually, add credits, toggle admin role, delete
+- **Users** - All users, create user manually, add credits, role dropdown (user/reseller/admin), delete
 - **Domains** - Add/remove/toggle proxy domains, multi-domain support
-- **Streams** - Stream proxy requests: approve/deny/revoke, bandwidth limit with save button, used bandwidth
-- **Servers** - VPS management: add/edit/delete, Start/Stop/Restart/Reboot via SSH, health check, uptime, CPU/RAM/Disk (auto-refresh 10s), max connections with save button, load balancing
-- **Credits** - Full credit transaction history (amount, balance, action, detail)
-- **Activity** - All user actions with IP addresses (login, register, proxy CRUD, admin actions, server operations)
-- **Registration toggle** - Open/close registration in sidebar
-- **Toast notifications** - Success/error feedback on all actions
+- **Streams** - Stream proxy requests: approve/deny/revoke, bandwidth limit, used bandwidth
+- **Servers** - VPS management: add/edit/delete, Start/Stop/Restart/Reboot via SSH, health check, uptime, CPU/RAM/Disk (auto-refresh 10s)
+- **Plans** - Stream plan CRUD (create/edit/toggle/delete), subscription overview with cancel
+- **Credits** - Full credit transaction history
+- **Activity** - All user actions with IP addresses
+- **Live Dashboard** - Real-time WebSocket: Active users, Bandwidth Mbps, Requests/sec
+- **Registration toggle** - Open/close registration
 
 ### User Dashboard
 - Proxy list with status, country, days remaining, stream badge
 - Real-time stream stats (connections, Mbps, total used) for stream proxies
-- Edit proxy: subdomain, target URL, country (without credit cost)
-- Add Proxy form: subdomain, target URL, country dropdown with city labels, validity period, domain selection
-- Buy Credits page with PayPal checkout
+- Gbps plan speed bar with percentage
+- Edit proxy: subdomain, target URL, country
+- IP lock set/remove
+- Stream token generation
+- Plans & Credits page: PayPal + Crypto for credits and streaming plans
 - Proxy renewal with validity selection
 - Request Stream Proxy mode
-- Credits display
+
+### Reseller Panel
+- Sub-Users tab: create, give credits, delete
+- Proxies tab: view all sub-user proxies with stats
+- Streams tab: approve/deny stream requests, bandwidth limits
+- Gbps Pool tab: total/allocated/available, per-proxy speed allocation
+- Stats tab: aggregate usage with pool info
+
+### Live WebSocket Dashboard
+- Real-time stats via socket.io: Active users, Bandwidth Mbps, Requests/sec
+- Per-proxy live bandwidth and connections
+- Admin and reseller access (JWT cookie auth)
+- 2-second update interval
 
 ### Multi-Domain Support
 - Admin adds domains through admin panel
-- Users choose domain when creating proxy (e.g., `.proxyxpass.com` or `.other-domain.com`)
+- Users choose domain when creating proxy
 - Each domain needs DNS A + wildcard A record + SSL certificate
-- Proxy cards display correct domain
 
 ### Security & Auth
 - JWT authentication with httpOnly cookies
 - bcrypt password hashing (12 rounds)
 - Registration toggle (admin can close/open)
-- Registration closed page with Discord contact link
-- Admin role system
-- Stream proxy requires admin approval
-- Bandwidth limiting on DNS and stream proxies
+- Admin, Reseller, User role system
+- Stream proxy requires admin/reseller approval
+- IP lock per-proxy
+- Token-based stream access with expiry
+- IPN webhook HMAC-SHA512 verification
 
 ---
 
@@ -154,19 +196,22 @@ User visits: mysite.proxyxpass.com
 | Component | Technology |
 |-----------|-----------|
 | Backend | Node.js + Express 5 |
-| Frontend | React 18 + Tailwind CSS v3 |
+| Frontend | React 19 + Tailwind CSS v3 |
 | Database | SQLite (better-sqlite3, WAL mode) |
 | Proxy Engine | http-proxy + https-proxy-agent v5 |
-| URL Rewriting | Custom string replacement (split/join) |
+| URL Rewriting | Custom string replacement + line-by-line M3U parser |
 | Decompression | Node.js zlib (gzip, deflate, brotli) |
 | Auth | JWT (jsonwebtoken) + bcrypt |
-| Payments | PayPal REST API v2 |
+| Payments | PayPal REST API v2 (orders + subscriptions) |
+| Crypto Payments | NOWPayments API (BTC, ETH, USDT + 300 coins) |
 | SSH | ssh2 (server setup + management) |
-| Proxy Servers | Squid proxy on VPS nodes |
+| Proxy Servers | Squid proxy + Node Agent on VPS nodes |
+| WebSocket | socket.io (live dashboard) |
 | Icons | Lucide React |
 | Process Manager | PM2 (cluster mode) |
 | Web Server | Nginx (SSL + multi-port) |
 | SSL | Let's Encrypt (Certbot, wildcard) |
+| DNS | Cloudflare API (optional auto-management) |
 
 ---
 
@@ -195,45 +240,30 @@ The script asks for domain and email, then automatically installs Node.js 20, Ng
 certbot certonly --manual --preferred-challenges dns -d yourdomain.com -d "*.yourdomain.com" --email you@email.com --agree-tos
 ```
 
-Add TXT record to DNS when prompted, wait for propagation, then confirm.
+### Environment Variables
 
-### Multi-Port Nginx Config
-
-```bash
-# Add IPTV port support to Nginx
-cat >> /etc/nginx/sites-available/xproxypass << 'EOF'
-server {
-    listen 25461;
-    listen 8080;
-    listen 8880;
-    listen 8443;
-    server_name yourdomain.com *.yourdomain.com;
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_connect_timeout 300s;
-        proxy_send_timeout 300s;
-        proxy_read_timeout 300s;
-    }
-    client_max_body_size 50m;
-    proxy_buffering off;
-}
-EOF
-ufw allow 25461/tcp
-ufw allow 8080/tcp
-nginx -t && systemctl reload nginx
+Create `/opt/xproxypass/.env`:
 ```
+PORT=3000
+DOMAIN=yourdomain.com
+NODE_ENV=production
+JWT_SECRET=your-random-secret-string
+JWT_EXPIRY=7d
+NODE_SECRET=your-node-agent-secret
 
-### Configure PayPal
-
-Add to `/opt/xproxypass/.env`:
-```
+# PayPal
 PAYPAL_CLIENT_ID=your-client-id
 PAYPAL_SECRET=your-secret
 PAYPAL_SANDBOX=false
+PAYPAL_WEBHOOK_ID=your-webhook-id
+
+# Cloudflare DNS (optional)
+CLOUDFLARE_TOKEN=
+CLOUDFLARE_ZONE_ID=
+
+# NOWPayments Crypto
+NOWPAYMENTS_API_KEY=your-api-key
+NOWPAYMENTS_IPN_SECRET=your-ipn-secret
 ```
 
 ### Make First Admin
@@ -247,124 +277,111 @@ node -e "const db = require('./server/database'); db.setAdmin(1, 1); console.log
 
 ---
 
-## Usage
-
-### For Users
-1. Register at the website
-2. Buy credits via PayPal or request from admin
-3. Dashboard -> Add Proxy
-4. Enter: subdomain, backend URL, country, validity period, domain
-5. Proxy is live at `subdomain.yourdomain.com`
-6. Renew anytime to extend duration
-7. Edit subdomain, target URL, or country without extra cost
-8. Request Stream Proxy mode for IPTV/streaming (requires admin approval)
-
-### For Admins
-1. **Admin Panel** - accessible from Dashboard
-2. **Manage Users** - create accounts, add credits, toggle admin, delete
-3. **Manage Proxies** - view all with live connections/bandwidth, delete
-4. **Manage Domains** - add/remove proxy domains
-5. **Stream Requests** - approve/deny, set bandwidth limits, revoke
-6. **Manage Servers** - add VPS (auto SSH Squid install), edit, start/stop/restart/reboot, monitor CPU/RAM/Disk/uptime
-7. **Settings** - open/close registration
-8. **Credit History** - audit all transactions
-9. **Activity Log** - monitor all actions with IPs
-
-### Adding a VPS Proxy Server
-1. Buy a VPS in desired country
-2. Admin Panel -> Servers -> Add Server
-3. Enter: IP, SSH port, username, password, country code, label, max connections
-4. System auto-connects via SSH and installs Squid proxy
-5. Server status monitored every 3 minutes
-6. Traffic for that country routes through your server
-
-### IPTV Setup
-1. User creates proxy with target: `http://iptv-server:port`
-2. User requests Stream Proxy mode
-3. Admin approves and sets bandwidth limit
-4. IPTV app settings: server `proxysubdomain.yourdomain.com`, port `original-port`, username, password
-5. All M3U/API responses rewritten with proxy URLs
-6. Real server IP completely hidden from end users
-
----
-
 ## API Reference
 
 ### Auth
-- `GET /api/auth/registration-status` - Check if registration is open
+- `GET /api/auth/registration-status`
 - `POST /api/auth/register` - `{ username, email, password }`
 - `POST /api/auth/login` - `{ email, password }`
 - `POST /api/auth/logout`
-- `GET /api/auth/me` - Get current user
+- `GET /api/auth/me`
 
 ### Proxies (requires auth)
 - `GET /api/proxies` - List user's proxies
-- `GET /api/proxies/countries` - Available countries (from own servers)
+- `GET /api/proxies/countries` - Available countries
 - `GET /api/proxies/domains` - Available proxy domains
-- `GET /api/proxies/validity-options` - Validity periods with credit costs
-- `POST /api/proxies` - `{ subdomain, target_url, country, validity, proxy_domain }`
-- `PATCH /api/proxies/:id/edit` - `{ subdomain, target_url, country }`
-- `POST /api/proxies/:id/renew` - `{ validity }`
-- `POST /api/proxies/:id/request-stream` - Request stream proxy mode
+- `GET /api/proxies/validity-options` - Validity periods with costs
+- `POST /api/proxies` - Create proxy
+- `PATCH /api/proxies/:id/edit` - Edit proxy
+- `POST /api/proxies/:id/renew` - Renew proxy
+- `POST /api/proxies/:id/request-stream` - Request stream mode
 - `PATCH /api/proxies/:id/toggle` - Toggle active/paused
 - `DELETE /api/proxies/:id` - Delete proxy
+- `POST /api/proxies/:id/ip-lock` - Set IP lock
+- `DELETE /api/proxies/:id/ip-lock` - Remove IP lock
+- `POST /api/proxies/:id/generate-token` - Generate stream token
+- `GET /api/proxies/:id/tokens` - List tokens
+- `DELETE /api/proxies/:id/tokens/:tokenId` - Revoke token
 
-### PayPal
-- `GET /api/paypal/packages` - Credit packages with EUR prices
-- `POST /api/paypal/create-order` - `{ package_id }`
-- `POST /api/paypal/capture-order` - `{ order_id }`
+### Payments
+- `GET /api/paypal/packages` - Credit packages
+- `POST /api/paypal/create-order` - PayPal credit purchase
+- `POST /api/paypal/capture-order` - Capture PayPal order
+- `GET /api/paypal/stream-plans` - Streaming/Enterprise/Reseller plans
+- `POST /api/paypal/create-subscription` - PayPal subscription
+- `POST /api/paypal/activate-subscription` - Activate subscription
+- `POST /api/paypal/cancel-subscription` - Cancel subscription
+- `GET /api/paypal/my-subscription` - Active subscription
+- `POST /api/crypto/create-invoice` - Crypto credit purchase
+- `POST /api/crypto/create-subscription-invoice` - Crypto plan purchase
+- `POST /api/crypto/ipn` - NOWPayments IPN webhook
+- `GET /api/crypto/payment-status/:orderId` - Check crypto payment
+- `GET /api/crypto/my-payments` - Crypto payment history
 
-### Stats
-- `GET /api/stats` - User stats (requires auth)
-- `GET /api/stats/global` - Global stats (public)
-- `GET /api/connections/:id` - Active connections and live Mbps for a proxy
+### Reseller (requires reseller role)
+- `GET /api/reseller/users` - Sub-users
+- `POST /api/reseller/users` - Create sub-user
+- `POST /api/reseller/users/:id/credits` - Transfer credits
+- `DELETE /api/reseller/users/:id` - Delete sub-user
+- `GET /api/reseller/proxies` - Sub-user proxies
+- `GET /api/reseller/stream-requests` - Stream requests
+- `POST /api/reseller/proxies/:id/approve-stream` - Approve stream
+- `POST /api/reseller/proxies/:id/deny-stream` - Deny stream
+- `POST /api/reseller/proxies/:id/bandwidth-limit` - Set bandwidth limit
+- `POST /api/reseller/proxies/:id/allocate-speed` - Allocate Gbps from pool
+- `GET /api/reseller/pool` - Pool status
+- `GET /api/reseller/stats` - Reseller stats
 
 ### Admin (requires admin role)
 - `GET /api/admin/users` - All users
-- `POST /api/admin/users` - `{ username, email, password, credits }` - Create user
-- `POST /api/admin/users/:id/credits` - `{ amount }` - Add credits
-- `PATCH /api/admin/users/:id/admin` - `{ is_admin }` - Toggle admin
+- `POST /api/admin/users` - Create user
+- `POST /api/admin/users/:id/credits` - Add credits
+- `PATCH /api/admin/users/:id/role` - Change role (user/reseller/admin)
+- `POST /api/admin/users/:id/reseller-limits` - Set reseller limits
 - `DELETE /api/admin/users/:id` - Delete user
 - `GET /api/admin/proxies` - All proxies
 - `DELETE /api/admin/proxies/:id` - Delete proxy
-- `GET /api/admin/domains` - All domains
-- `POST /api/admin/domains` - `{ domain }` - Add domain
-- `PATCH /api/admin/domains/:id/toggle` - Toggle domain
-- `DELETE /api/admin/domains/:id` - Delete domain
-- `GET /api/admin/settings` - Get settings
-- `POST /api/admin/settings` - `{ key, value }` - Update setting
-- `GET /api/admin/credit-history` - Credit transaction log
-- `GET /api/admin/activity-log` - Activity log
-- `GET /api/admin/stream-requests` - All stream proxy requests (pending + approved)
-- `POST /api/admin/proxies/:id/approve-stream` - Approve stream proxy
-- `POST /api/admin/proxies/:id/deny-stream` - Deny/revoke stream proxy
-- `POST /api/admin/proxies/:id/bandwidth-limit` - `{ limit_mbps }`
-- `POST /api/admin/proxies/:id/reset-bandwidth` - Reset counter
-- `GET /api/admin/servers` - All proxy servers
-- `POST /api/admin/servers` - `{ ip, ssh_port, username, password, country, label, max_connections }`
-- `PATCH /api/admin/servers/:id` - `{ country, label, ssh_pass }`
-- `GET /api/admin/servers/:id/uptime` - Server uptime, CPU, RAM, Disk via SSH
-- `POST /api/admin/servers/:id/check` - Health check
-- `POST /api/admin/servers/:id/max-connections` - `{ max }`
-- `POST /api/admin/servers/:id/start` - Start Squid via SSH
-- `POST /api/admin/servers/:id/stop` - Stop Squid via SSH
-- `POST /api/admin/servers/:id/restart` - Restart Squid via SSH
-- `POST /api/admin/servers/:id/reboot` - Reboot VPS via SSH
-- `DELETE /api/admin/servers/:id` - Delete server
-- `GET /api/admin/stats` - Global stats
+- `GET /api/admin/stream-plans` - All plans
+- `POST /api/admin/stream-plans` - Create plan
+- `PATCH /api/admin/stream-plans/:id` - Edit plan
+- `DELETE /api/admin/stream-plans/:id` - Delete plan
+- `GET /api/admin/subscriptions` - All subscriptions
+- `POST /api/admin/subscriptions/:id/cancel` - Cancel subscription
+- Server management, domain management, settings, credits, activity endpoints
+
+### Stream Token Access
+- `GET /stream/:subdomain?token=xyz` - Access stream via token
+
+### Live Stats
+- `GET /api/connections/:id` - Active connections for proxy
+- `GET /api/server-connections` - Server connection counts
+- `GET /api/live-stats` - Global live stats (active, bandwidth, req/s)
+- WebSocket `ws://` path `/ws` - Real-time dashboard events
 
 ---
 
 ## Database Schema
 
 ### users
-`id, username, email, password_hash, is_admin, credits, created_at`
+`id, username, email, password_hash, is_admin, credits, role, parent_id, max_proxies, max_users, max_bandwidth, gbps_pool, gbps_allocated, created_at`
 
 ### proxies
-`id, user_id, subdomain, target_url, country, is_active, requests_count, expires_at, stream_proxy (0/1/2), bandwidth_used, bandwidth_limit, proxy_domain, created_at`
+`id, user_id, subdomain, target_url, country, is_active, requests_count, expires_at, stream_proxy, bandwidth_used, bandwidth_limit, proxy_domain, ip_lock, speed_limit_mbps, created_at`
 
 ### proxy_servers
 `id, ip, port, country, label, max_connections, bandwidth_limit, ssh_port, ssh_user, ssh_pass, status, last_check, created_at`
+
+### stream_plans
+`id, name, type, speed_mbps, price_eur, is_active, description, paypal_plan_id, created_at`
+
+### subscriptions
+`id, user_id, plan_id, paypal_subscription_id, status, speed_mbps, plan_type, started_at, expires_at, created_at`
+
+### stream_tokens
+`id, token, proxy_id, expires_at, created_at`
+
+### crypto_payments
+`id, user_id, nowpayments_id, invoice_id, type, package_id, plan_id, amount_eur, status, pay_currency, pay_amount, order_id, created_at`
 
 ### domains
 `id, domain, is_active, created_at`
@@ -378,8 +395,51 @@ node -e "const db = require('./server/database'); db.setAdmin(1, 1); console.log
 ### settings
 `key, value` (registration_open)
 
-### request_logs
-`id, proxy_id, method, path, status_code, ip_address, created_at`
+---
+
+## File Structure
+
+```
+XProxypass/
+  server/
+    index.js              # Express server + proxy engine + WebSocket dashboard + stream token route
+    config.js             # Environment config
+    database.js           # SQLite schema + queries + migrations + plan seeding
+    auth.js               # JWT middleware
+    node-agent.js         # Deployable agent for VPS nodes (proxy + speed enforcement)
+    server-setup.js       # SSH auto-install Squid + Node Agent + health check
+    dns-manager.js        # Cloudflare DNS auto-management
+    routes/
+      auth.routes.js      # Register, login, logout
+      proxy.routes.js     # CRUD proxies, IP lock, stream tokens
+      stats.routes.js     # User and global statistics
+      admin.routes.js     # Admin panel API (users, proxies, servers, plans, subscriptions)
+      paypal.routes.js    # PayPal orders + subscriptions + webhooks + plan sync
+      crypto.routes.js    # NOWPayments crypto invoices + IPN webhook
+      node.routes.js      # Node agent validation + stats reporting
+      reseller.routes.js  # Reseller sub-user + pool management
+  client/
+    src/
+      pages/
+        Landing.jsx       # Landing page with pricing (DNS, Streaming, Enterprise, Reseller)
+        Login.jsx         # Login page
+        Register.jsx      # Register page
+        Dashboard.jsx     # User dashboard with proxy management
+        AddProxy.jsx      # Create proxy form
+        BuyCredits.jsx    # Plans & Credits (PayPal + Crypto for credits and plans)
+        Admin.jsx         # Admin panel (8 tabs + live stats bar)
+        Reseller.jsx      # Reseller panel (5 tabs including Gbps pool)
+      components/
+        Navbar.jsx        # Navigation
+        Footer.jsx        # Footer
+        ProxyCard.jsx     # Proxy card with live stats, speed bar, edit, tokens
+        FeatureCard.jsx   # Landing feature card
+        FAQItem.jsx       # FAQ accordion
+        GlassCard.jsx     # Glass card wrapper
+  install.sh              # One-command VPS installer
+  ecosystem.config.js     # PM2 config
+  nginx.conf.template     # Nginx template
+```
 
 ---
 
@@ -388,7 +448,6 @@ node -e "const db = require('./server/database'); db.setAdmin(1, 1); console.log
 ```bash
 pm2 status                    # Check status
 pm2 logs xproxypass           # View logs
-pm2 logs xproxypass --err     # Error logs only
 pm2 restart xproxypass        # Restart
 pm2 delete all && pm2 start ecosystem.config.js && pm2 save  # Clean restart
 ```
@@ -401,48 +460,6 @@ git pull
 npm install
 cd client && npm install && npm run build && cd ..
 pm2 delete all && pm2 start ecosystem.config.js && pm2 save
-```
-
----
-
-## File Structure
-
-```
-XProxypass/
-  server/
-    index.js              # Express server + proxy engine + URL rewriting + stream handling
-    config.js             # Environment config (PayPal, domain, JWT)
-    database.js           # SQLite schema + all queries + migrations
-    auth.js               # JWT middleware
-    proxy-pool.js         # (disabled) Free proxy pool from proxifly
-    server-setup.js       # SSH auto-install Squid + health check + server commands
-    routes/
-      auth.routes.js      # Register, login, logout, registration status
-      proxy.routes.js     # CRUD proxies, countries, domains, validity, renew, stream request, edit
-      stats.routes.js     # User and global statistics
-      admin.routes.js     # Admin panel API (users, proxies, servers, streams, domains, settings, SSH commands)
-      paypal.routes.js    # PayPal create/capture orders, credit packages
-  client/
-    src/
-      pages/
-        Landing.jsx       # Landing page with pricing and stream proxy section
-        Login.jsx         # Login page
-        Register.jsx      # Register page (with registration closed notice)
-        Dashboard.jsx     # User dashboard with credits, proxy management, stream stats
-        AddProxy.jsx      # Create proxy form (country with cities, validity, domain selection)
-        BuyCredits.jsx    # PayPal credit purchase page
-        Admin.jsx         # Admin panel (proxies, users, domains, streams, servers, credits, activity, settings, modals, toast notifications)
-      components/
-        Navbar.jsx        # Navigation with logo, context-aware links
-        Footer.jsx        # Footer with Discord link, Developed by X Project
-        ProxyCard.jsx     # Proxy card (edit, renew, stream request, live stats, bandwidth bar)
-        FeatureCard.jsx   # Landing feature card
-        FAQItem.jsx       # FAQ accordion
-        GlassCard.jsx     # Glass card wrapper
-  install.sh              # One-command VPS installer
-  ecosystem.config.js     # PM2 config
-  nginx.conf.template     # Nginx template
-  ProxyXPass_logo.png     # Logo
 ```
 
 ---

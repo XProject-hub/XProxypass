@@ -331,7 +331,7 @@ const stmts = {
 
   // Stream tokens
   createStreamToken: db.prepare('INSERT INTO stream_tokens (token, proxy_id, expires_at) VALUES (?, ?, ?)'),
-  getStreamToken: db.prepare('SELECT st.*, p.subdomain, p.target_url, p.stream_proxy, p.is_active, p.bandwidth_limit, p.bandwidth_used, p.proxy_domain, p.country, p.expires_at as proxy_expires_at, p.ip_lock FROM stream_tokens st JOIN proxies p ON st.proxy_id = p.id WHERE st.token = ?'),
+  getStreamToken: db.prepare('SELECT st.*, p.subdomain, p.target_url, p.stream_proxy, p.is_active, p.bandwidth_limit, p.bandwidth_used, p.proxy_domain, p.country, p.expires_at as proxy_expires_at, p.ip_lock, p.speed_limit_mbps FROM stream_tokens st JOIN proxies p ON st.proxy_id = p.id WHERE st.token = ?'),
   getTokensByProxy: db.prepare('SELECT id, token, proxy_id, expires_at, created_at FROM stream_tokens WHERE proxy_id = ? ORDER BY created_at DESC'),
   deleteStreamToken: db.prepare('DELETE FROM stream_tokens WHERE id = ? AND proxy_id = ?'),
   deleteExpiredTokens: db.prepare('DELETE FROM stream_tokens WHERE expires_at < ?'),

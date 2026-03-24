@@ -208,8 +208,6 @@ router.get('/pool', (req, res) => {
     const proxies = db.getProxiesByParent(req.user.id);
     const totalAllocated = proxies.reduce((sum, p) => sum + (p.speed_limit_mbps || 0), 0);
 
-    db.setGbpsAllocated(req.user.id, totalAllocated);
-
     res.json({
       pool: {
         total_mbps: reseller.gbps_pool || 0,

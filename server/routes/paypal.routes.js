@@ -72,7 +72,7 @@ router.post('/create-order', authenticate, async (req, res) => {
       }],
       application_context: {
         brand_name: 'ProxyXPass',
-        return_url: `https://${config.domain}/dashboard?payment=success`,
+        return_url: `https://${config.domain}/dashboard/buy?payment=success`,
         cancel_url: `https://${config.domain}/dashboard/buy?payment=cancelled`,
       },
     });
@@ -281,7 +281,7 @@ router.post('/create-subscription', authenticate, async (req, res) => {
       custom_id: JSON.stringify({ user_id: req.user.id, plan_id: plan.id }),
       application_context: {
         brand_name: 'ProxyXPass',
-        return_url: `https://${config.domain}/dashboard?subscription=success&plan_id=${plan.id}`,
+        return_url: `https://${config.domain}/dashboard/buy?subscription=success&plan_id=${plan.id}`,
         cancel_url: `https://${config.domain}/dashboard/buy?subscription=cancelled`,
         user_action: 'SUBSCRIBE_NOW',
       },
