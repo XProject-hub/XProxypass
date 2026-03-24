@@ -157,7 +157,7 @@ export default function Dashboard() {
               </Link>
             )}
             <Link to="/dashboard/buy" className="btn-secondary flex items-center gap-2 text-sm" style={{ padding: '0.6rem 1rem' }}>
-              <CreditCard className="w-4 h-4" /> Buy Credits
+              <CreditCard className="w-4 h-4" /> Plans & Credits
             </Link>
             <Link to="/dashboard/add" className="btn-primary flex items-center gap-2 text-sm">
               <Plus className="w-4 h-4" /> Add Proxy

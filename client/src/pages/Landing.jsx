@@ -92,7 +92,7 @@ export default function Landing() {
           </h1>
 
           <p className="text-lg md:text-xl text-slate-400 mb-10 max-w-2xl mx-auto leading-relaxed animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-            Deploy your reverse proxy in seconds. Route traffic through our distributed network and eliminate connectivity problems.
+            Deploy reverse proxies and IPTV stream proxies in seconds. Route traffic through our distributed Gbps network. Your real server IP stays hidden.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
@@ -153,40 +153,45 @@ export default function Landing() {
             <FeatureCard
               icon={Shield}
               title="99.9% Uptime"
-              description="We guarantee our network will be up and functioning 99.9% of the time. Built for reliability."
+              description="Distributed network with health monitoring. Auto-failover keeps your proxies always online."
             />
             <FeatureCard
               icon={LayoutDashboard}
               title="Easy Dashboard"
-              description="Intuitive control panel to manage all your proxy services. Deploy in seconds, not hours."
+              description="Deploy DNS or Stream proxies in seconds. Manage everything from one intuitive panel."
             />
             <FeatureCard
-              icon={Users}
-              title="Referral Program"
-              description="Share our services and earn rewards. Your referrals get premium benefits too."
+              icon={Zap}
+              title="IPTV / Streaming"
+              description="M3U playlist rewriting, Xtream Codes API support, HLS segment proxying. All major IPTV apps supported."
             />
             <FeatureCard
               icon={HeadphonesIcon}
               title="Live Support"
-              description="Get help when you need it. Our support team is available Monday through Friday."
+              description="Get help when you need it. Our support team is available on Discord."
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mt-5">
             <FeatureCard
-              icon={Zap}
-              title="Lightning Fast"
-              description="Optimized routing through our CDN network ensures minimal latency for all proxied traffic."
+              icon={Activity}
+              title="Gbps Speed Plans"
+              description="Choose from 1-5 Gbps plans. Fair use streaming or dedicated enterprise bandwidth."
             />
             <FeatureCard
               icon={Server}
-              title="WebSocket Support"
-              description="Full WebSocket proxying support for real-time applications and live connections."
+              title="Multi-Port Support"
+              description="Ports 25461, 8080, 8880, 8443, 1935 and more. IPTV apps connect on their original port."
             />
             <FeatureCard
-              icon={Activity}
-              title="Real-time Analytics"
-              description="Monitor your proxy traffic with detailed request statistics and performance metrics."
+              icon={Users}
+              title="Reseller Program"
+              description="Buy a Gbps pool and distribute to sub-users. Full management panel with credit system."
+            />
+            <FeatureCard
+              icon={Globe}
+              title="Multi-Country"
+              description="Route traffic through VPS nodes worldwide. Choose your country for optimal routing."
             />
           </div>
         </div>
@@ -206,9 +211,9 @@ export default function Landing() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
-              { step: '01', icon: UserPlus, title: 'Create Account', desc: 'Sign up for free in seconds. No credit card required to get started.' },
-              { step: '02', icon: Globe, title: 'Deploy Proxy', desc: 'Enter your backend URL, choose a subdomain, and deploy your proxy instantly.' },
-              { step: '03', icon: Zap, title: 'Go Live', desc: 'Your proxy is live. Access your site through our CDN with zero downtime.' },
+              { step: '01', icon: UserPlus, title: 'Create Account', desc: 'Sign up for free. Buy credits for DNS proxies or subscribe to a Gbps streaming plan.' },
+              { step: '02', icon: Globe, title: 'Deploy Proxy', desc: 'Enter your backend URL, choose a subdomain and country. For IPTV, request Stream Proxy mode.' },
+              { step: '03', icon: Zap, title: 'Go Live', desc: 'Your proxy is live instantly. All URLs rewritten, real server IP completely hidden.' },
             ].map((item) => (
               <div key={item.step} className="glass rounded-2xl p-8 text-center glass-hover relative">
                 <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-bold gradient-text bg-[#06060a] border border-white/[0.06]">
@@ -227,66 +232,151 @@ export default function Landing() {
 
       {/* Pricing */}
       <section id="pricing" className="relative py-24 md:py-32 border-t border-white/[0.04]">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-slate-100 mb-4">
               Simple <span className="gradient-text">Pricing</span>
             </h2>
             <p className="text-slate-400 max-w-xl mx-auto">
-              Purchase credit packages. 1 credit = 1 proxy for 1 month. Renew anytime to extend.
+              DNS Proxy credits for web proxying, or Gbps streaming plans for IPTV and high-bandwidth use.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {[
-              { name: 'Starter', credits: 1, price: '7', perCredit: '7.00', desc: 'Try the service with a single proxy' },
-              { name: 'Basic', credits: 5, price: '30', perCredit: '6.00', desc: 'Perfect for small projects' },
-              { name: 'Pro', credits: 10, price: '50', perCredit: '5.00', desc: 'Best value for regular users', popular: true },
-              { name: 'Business', credits: 25, price: '100', perCredit: '4.00', desc: 'Maximum savings for power users' },
-            ].map((plan) => (
-              <div key={plan.name} className={`glass rounded-2xl p-6 text-center glass-hover relative ${plan.popular ? 'border-cyan-500/20' : ''}`}>
-                {plan.popular && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-cyan-500 to-blue-500 text-white">
-                    Best Value
+          {/* DNS Proxy Credits */}
+          <div className="mb-12">
+            <h3 className="text-xl font-bold text-slate-200 mb-2 text-center">DNS Proxy</h3>
+            <p className="text-sm text-slate-500 mb-6 text-center">Web proxying with full URL rewriting. Pay per proxy per month.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 max-w-4xl mx-auto">
+              {[
+                { name: 'Starter', credits: 1, price: '7', perCredit: '7.00', desc: 'Try the service' },
+                { name: 'Basic', credits: 5, price: '30', perCredit: '6.00', desc: 'Small projects' },
+                { name: 'Pro', credits: 10, price: '50', perCredit: '5.00', desc: 'Best value', popular: true },
+                { name: 'Business', credits: 25, price: '100', perCredit: '4.00', desc: 'Power users' },
+              ].map((plan) => (
+                <div key={plan.name} className={`glass rounded-2xl p-5 text-center glass-hover relative ${plan.popular ? 'border-cyan-500/20' : ''}`}>
+                  {plan.popular && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-cyan-500 to-blue-500 text-white">
+                      Best Value
+                    </div>
+                  )}
+                  <h3 className="text-base font-semibold text-slate-100 mt-1 mb-1">{plan.name}</h3>
+                  <div className="mb-1">
+                    <span className="text-2xl font-bold gradient-text">&euro;{plan.price}</span>
                   </div>
-                )}
-                <h3 className="text-lg font-semibold text-slate-100 mt-2 mb-1">{plan.name}</h3>
-                <div className="mb-1">
-                  <span className="text-3xl font-bold gradient-text">&euro;{plan.price}</span>
+                  <p className="text-xs text-cyan-400/60 mb-1">{plan.credits} credit{plan.credits > 1 ? 's' : ''}</p>
+                  <p className="text-[10px] text-slate-600 mb-4">{plan.desc}</p>
+                  <Link to="/register" className={`w-full inline-flex items-center justify-center py-2 rounded-lg text-sm font-medium transition-all ${plan.popular ? 'btn-primary' : 'btn-secondary'}`}>
+                    Get Started
+                  </Link>
                 </div>
-                <p className="text-xs text-cyan-400/60 mb-1">{plan.credits} credit{plan.credits > 1 ? 's' : ''}</p>
-                <p className="text-[10px] text-slate-600 mb-4">&euro;{plan.perCredit} per credit</p>
-                <p className="text-xs text-slate-500 mb-5">{plan.desc}</p>
-                <Link to="/register" className={`w-full inline-flex items-center justify-center py-2.5 rounded-lg text-sm font-medium transition-all ${plan.popular ? 'btn-primary' : 'btn-secondary'}`}>
-                  Get Started
-                </Link>
-              </div>
-            ))}
-          </div>
-
-          <div className="glass rounded-xl p-5 mt-8 max-w-2xl mx-auto">
-            <div className="text-center">
-              <p className="text-sm text-slate-300 mb-2">How credits work</p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs text-slate-500">
-                <div>1 credit = 1 proxy / 1 month</div>
-                <div>2 credits = 1 proxy / 3 months</div>
-                <div>6 credits = 1 proxy / 12 months</div>
-              </div>
-              <p className="text-xs text-slate-600 mt-3">You can also renew existing proxies to extend their duration.</p>
+              ))}
             </div>
           </div>
 
-          <div className="glass rounded-xl p-6 mt-5 max-w-2xl mx-auto border-purple-500/10">
+          {/* Streaming Plans */}
+          <div className="mb-12">
+            <h3 className="text-xl font-bold text-slate-200 mb-2 text-center">
+              <span className="gradient-text">Streaming Plans</span>
+            </h3>
+            <p className="text-sm text-slate-500 mb-6 text-center">IPTV & video streaming proxy with Gbps speed. Fair use with burst support.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              {[
+                { speed: '1', price: '99', desc: 'Fair use streaming' },
+                { speed: '2', price: '179', desc: 'Most popular', popular: true },
+                { speed: '3', price: '249', desc: 'High-bandwidth' },
+                { speed: '5', price: '399', desc: 'Maximum speed' },
+              ].map((plan) => (
+                <div key={plan.speed} className={`glass rounded-2xl p-6 text-center glass-hover relative ${plan.popular ? 'border-cyan-500/20' : ''}`}>
+                  {plan.popular && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-cyan-500 to-blue-500 text-white">
+                      Popular
+                    </div>
+                  )}
+                  <h3 className="text-2xl font-bold text-slate-100 mt-2 mb-1">{plan.speed} Gbps</h3>
+                  <div className="mb-1">
+                    <span className="text-3xl font-bold gradient-text">&euro;{plan.price}</span>
+                    <span className="text-sm text-slate-500">/mo</span>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-4">{plan.desc}</p>
+                  <ul className="text-left mb-5 space-y-1.5 px-2">
+                    {['M3U / Xtream Codes', 'URL rewriting', 'Burst allowed', 'Multi-port support'].map((f, i) => (
+                      <li key={i} className="flex items-center gap-2 text-xs text-slate-400">
+                        <span className="w-1 h-1 rounded-full bg-emerald-400 flex-shrink-0" /> {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <Link to="/register" className={`w-full inline-flex items-center justify-center py-2.5 rounded-lg text-sm font-medium transition-all ${plan.popular ? 'btn-primary' : 'btn-secondary'}`}>
+                    Subscribe
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Enterprise Plans */}
+          <div className="mb-12">
+            <h3 className="text-xl font-bold text-slate-200 mb-2 text-center">
+              <span className="text-amber-400">Enterprise</span>
+            </h3>
+            <p className="text-sm text-slate-500 mb-6 text-center">Dedicated bandwidth, no throttling, priority routing, premium support.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              {[
+                { speed: '1', price: '249' },
+                { speed: '2', price: '399', popular: true },
+                { speed: '3', price: '599' },
+                { speed: '5', price: '999' },
+              ].map((plan) => (
+                <div key={plan.speed} className={`glass rounded-2xl p-6 text-center glass-hover relative ${plan.popular ? 'border-amber-500/20' : ''}`}>
+                  {plan.popular && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-amber-500 to-orange-500 text-white">
+                      Popular
+                    </div>
+                  )}
+                  <h3 className="text-2xl font-bold text-slate-100 mt-2 mb-1">{plan.speed} Gbps</h3>
+                  <div className="mb-1">
+                    <span className="text-3xl font-bold text-amber-400">&euro;{plan.price}</span>
+                    <span className="text-sm text-slate-500">/mo</span>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-4">Dedicated bandwidth</p>
+                  <ul className="text-left mb-5 space-y-1.5 px-2">
+                    {['No throttling', 'Priority routing', 'Premium support', 'Dedicated resources'].map((f, i) => (
+                      <li key={i} className="flex items-center gap-2 text-xs text-slate-400">
+                        <span className="w-1 h-1 rounded-full bg-amber-400 flex-shrink-0" /> {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <Link to="/register" className={`w-full inline-flex items-center justify-center py-2.5 rounded-lg text-sm font-medium transition-all ${plan.popular ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:opacity-90' : 'btn-secondary'}`}>
+                    Subscribe
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Reseller */}
+          <div className="glass rounded-xl p-8 max-w-3xl mx-auto border-purple-500/10">
             <div className="text-center">
-              <p className="text-sm font-semibold text-purple-400 mb-2">Stream Proxy Mode</p>
-              <p className="text-xs text-slate-400 mb-3">
-                Need to proxy video streams or IPTV services? Stream Proxy mode rewrites all URLs in responses to fully hide your backend server. 
-                Custom pricing based on bandwidth requirements.
+              <p className="text-lg font-bold text-purple-400 mb-2">Reseller Program</p>
+              <p className="text-sm text-slate-400 mb-4">
+                Buy a Gbps pool and distribute bandwidth to your sub-users. Full reseller panel with user management, 
+                credit distribution, and stream approvals.
               </p>
-              <a href="https://discord.gg/mg6q9mgA" target="_blank" rel="noopener noreferrer"
-                className="btn-secondary text-xs inline-flex items-center gap-2" style={{ padding: '0.5rem 1.25rem' }}>
-                Contact us on Discord for a quote
-              </a>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+                {[
+                  { pool: '5', price: '399' },
+                  { pool: '10', price: '699' },
+                  { pool: '20', price: '1,199' },
+                  { pool: '50', price: '2,499' },
+                ].map(r => (
+                  <div key={r.pool} className="glass rounded-lg p-3">
+                    <p className="text-lg font-bold text-purple-400">{r.pool} Gbps</p>
+                    <p className="text-sm text-slate-400">&euro;{r.price}/mo</p>
+                  </div>
+                ))}
+              </div>
+              <Link to="/register" className="btn-secondary text-sm inline-flex items-center gap-2" style={{ padding: '0.6rem 1.5rem' }}>
+                Become a Reseller
+              </Link>
             </div>
           </div>
         </div>
@@ -304,23 +394,31 @@ export default function Landing() {
           <div className="space-y-3">
             <FAQItem
               question="What is ProxyXPass?"
-              answer="ProxyXPass is a software-based CDN and reverse proxy service. It allows you to create proxy endpoints for your websites, routing traffic through our distributed network for better performance and reliability."
+              answer="ProxyXPass is a software-based CDN and reverse proxy service. It allows you to create proxy endpoints for your websites and IPTV streams, routing traffic through our distributed network. Your real server IP stays completely hidden."
             />
             <FAQItem
-              question="How do I use ProxyXPass?"
-              answer="Simply create an account, go to your dashboard, and add a new proxy. Enter your backend URL (e.g., https://your-site.com) and choose a subdomain. Your proxy will be deployed instantly and accessible via your-subdomain.yourdomain.com."
+              question="What is the difference between DNS Proxy and Streaming plans?"
+              answer="DNS Proxy is for regular websites - it rewrites URLs in HTML/CSS/JS responses. Streaming plans are for IPTV and video - they rewrite M3U playlists, Xtream Codes API responses, follow redirects, and handle high-bandwidth .ts segment proxying with Gbps speed limits."
             />
             <FAQItem
-              question="Does ProxyXPass forward the real IP?"
-              answer="Yes. ProxyXPass forwards the original visitor's IP address through the X-Forwarded-For and X-Real-IP headers. Your backend service can read these headers to get the actual client IP address."
+              question="How do Streaming plans work?"
+              answer="Subscribe to a Gbps plan (e.g. 1 Gbps for 99 EUR/month). Create a proxy pointing to your IPTV backend, then request Stream Proxy mode. Once approved, your proxy gets the speed limit from your plan. All M3U and API responses are rewritten automatically."
+            />
+            <FAQItem
+              question="What IPTV apps are supported?"
+              answer="ProxyXPass works with all major IPTV apps: Smarters Pro, TiviMate, XCIPTV, VLC, GSE Smart, and any app that uses Xtream Codes API or M3U playlists. Multi-port support (25461, 8080, 8880, etc.) is included."
+            />
+            <FAQItem
+              question="What is the Reseller program?"
+              answer="Resellers buy a Gbps bandwidth pool (e.g. 10 Gbps for 699 EUR/month) and distribute it to their sub-users. You get a full management panel with user creation, credit distribution, stream approvals, and speed allocation per user."
             />
             <FAQItem
               question="Does ProxyXPass support WebSockets?"
-              answer="Yes. ProxyXPass fully supports WebSocket connections. All WebSocket upgrade requests are automatically proxied to your backend server, enabling real-time applications to work seamlessly."
+              answer="Yes. Full WebSocket proxying is supported for both DNS and Stream proxies. All upgrade requests are automatically proxied to your backend server."
             />
             <FAQItem
               question="What about HTTPS and SSL?"
-              answer="ProxyXPass handles SSL termination automatically. Your proxy endpoints are accessible via both HTTP and HTTPS. SSL certificates are provisioned and renewed automatically using Let's Encrypt."
+              answer="SSL termination is handled automatically. All proxy endpoints work on HTTPS with Let's Encrypt certificates. Multi-port support is included for IPTV-specific ports."
             />
           </div>
         </div>
