@@ -508,7 +508,7 @@ app.use((req, res, next) => {
 });
 
 // Token-based stream access: /stream/:subdomain?token=xyz
-app.use('/stream/:proxySubdomain', (req, res) => {
+const streamTokenHandler = (req, res) => {
   try {
     const { token } = req.query;
     if (!token) {
@@ -578,7 +578,8 @@ app.use('/stream/:proxySubdomain', (req, res) => {
     });
 
     const proxyHost = `${record.subdomain}.${record.proxy_domain || config.domain}`;
-    const streamPath = req.url.replace(/[?&]token=[^&]*/g, '').replace(/\?$/, '') || '/';
+    const remaining = req.params.remainingPath || '';
+    const streamPath = '/' + remaining;
     const targetUrl = record.target_url.replace(/\/$/, '') + streamPath;
 
     const client = targetUrl.startsWith('https') ? require('https') : require('http');
@@ -619,7 +620,9 @@ app.use('/stream/:proxySubdomain', (req, res) => {
     console.error('[StreamToken] Error:', err);
     res.writeHead(500); res.end('Internal error');
   }
-});
+};
+app.get('/stream/:proxySubdomain', streamTokenHandler);
+app.get('/stream/:proxySubdomain/{*remainingPath}', streamTokenHandler);
 
 // Cleanup expired stream tokens every 5 minutes
 setInterval(() => { try { db.deleteExpiredTokens(); } catch {} }, 5 * 60 * 1000);
