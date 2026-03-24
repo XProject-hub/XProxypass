@@ -251,7 +251,7 @@ router.patch('/:id/toggle', (req, res) => {
   }
 });
 
-router.patch('/:id/edit', (req, res) => {
+router.patch('/:id/edit', async (req, res) => {
   try {
     const { id } = req.params;
     const { subdomain, target_url, country } = req.body;
@@ -264,6 +264,16 @@ router.patch('/:id/edit', (req, res) => {
     if (country && country !== proxy.country) {
       db.updateProxyCountry(id, req.user.id, country);
       db.addActivityLog(req.user.id, req.user.username, req.ip, 'Proxy', 'EditCountry', `${proxy.subdomain}: ${proxy.country} -> ${country}`);
+
+      if (dnsManager.isConfigured()) {
+        const domain = proxy.proxy_domain || require('../config').domain;
+        if (country !== 'auto') {
+          const nodeIP = await dnsManager.getNodeIPForCountry(country, db);
+          if (nodeIP) dnsManager.createARecord(proxy.subdomain, domain, nodeIP).catch(() => {});
+        } else {
+          dnsManager.deleteARecord(proxy.subdomain, domain).catch(() => {});
+        }
+      }
     }
 
     if (subdomain) {

@@ -230,13 +230,22 @@ router.get('/stream-requests', (req, res) => {
   catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.post('/proxies/:id/approve-stream', (req, res) => {
+router.post('/proxies/:id/approve-stream', async (req, res) => {
   try {
     const proxy = db.getProxyById(req.params.id);
     if (!proxy) return res.status(404).json({ error: 'Proxy not found' });
 
     db.approveStreamProxy(req.params.id);
     db.addActivityLog(req.user.id, req.user.username, req.ip, 'Stream', 'Approved', `${proxy.subdomain} (owner: ${proxy.user_id})`);
+
+    if (dnsManager.isConfigured() && proxy.country && proxy.country !== 'auto') {
+      const nodeIP = await dnsManager.getNodeIPForCountry(proxy.country, db);
+      if (nodeIP) {
+        const domain = proxy.proxy_domain || require('../config').domain;
+        dnsManager.createARecord(proxy.subdomain, domain, nodeIP).catch(() => {});
+        console.log(`[DNS] Stream approved: ${proxy.subdomain}.${domain} -> ${nodeIP}`);
+      }
+    }
 
     res.json({ message: 'Stream proxy approved', proxy: db.getProxyById(req.params.id) });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
