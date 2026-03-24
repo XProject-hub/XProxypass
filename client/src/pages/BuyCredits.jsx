@@ -41,19 +41,35 @@ export default function BuyCredits() {
     if (params.get('crypto') === 'success') {
       const orderId = params.get('order');
       if (orderId) {
+        setProcessing('crypto-confirming');
+        let attempts = 0;
         const pollStatus = () => {
+          attempts++;
           fetch(`/api/crypto/payment-status/${orderId}`).then(r => r.json()).then(d => {
-            if (d.payment?.status === 'finished' || d.payment?.status === 'confirmed') {
-              setSuccess({ credits_added: 0, new_balance: 0 });
-              fetch('/api/auth/me').then(r => r.json()).then(u => setCredits(u.user?.credits || 0));
-              fetch('/api/paypal/my-subscription').then(r => r.json()).then(d => setActiveSub(d.active));
+            const st = d.payment?.status;
+            if (st === 'finished' || st === 'confirmed') {
+              setProcessing(null);
+              if (d.payment?.type === 'credits') {
+                fetch('/api/auth/me').then(r => r.json()).then(u => {
+                  setCredits(u.user?.credits || 0);
+                  setSuccess({ credits_added: 0, new_balance: u.user?.credits || 0, crypto: true });
+                });
+              } else {
+                fetch('/api/paypal/my-subscription').then(r => r.json()).then(s => setActiveSub(s.active));
+                setSuccess({ credits_added: 0, new_balance: 0, subscription: true });
+              }
               window.history.replaceState({}, '', '/dashboard/buy');
+              clearInterval(pollInterval);
+            } else if (st === 'failed' || st === 'expired' || st === 'refunded') {
+              setProcessing(null);
+              setError(`Crypto payment ${st}.`);
+              clearInterval(pollInterval);
             }
           }).catch(() => {});
+          if (attempts > 60) clearInterval(pollInterval);
         };
         pollStatus();
-        const pollInterval = setInterval(pollStatus, 10000);
-        setTimeout(() => clearInterval(pollInterval), 300000);
+        const pollInterval = setInterval(pollStatus, 5000);
       }
     }
     if (params.get('crypto') === 'cancelled') {
@@ -276,6 +292,15 @@ export default function BuyCredits() {
           <div className="mb-6 glass rounded-xl p-8 text-center">
             <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mx-auto mb-3" />
             <p className="text-sm text-slate-300">Verifying payment...</p>
+          </div>
+        )}
+
+        {processing === 'crypto-confirming' && (
+          <div className="mb-6 glass rounded-xl p-8 text-center border border-amber-500/20">
+            <Loader2 className="w-8 h-8 text-amber-400 animate-spin mx-auto mb-3" />
+            <p className="text-sm text-slate-200 font-medium mb-1">Waiting for crypto confirmation...</p>
+            <p className="text-xs text-slate-500">Your payment has been sent. Waiting for blockchain confirmation. This can take a few minutes depending on the cryptocurrency.</p>
+            <p className="text-xs text-slate-600 mt-3">This page will update automatically when confirmed.</p>
           </div>
         )}
 

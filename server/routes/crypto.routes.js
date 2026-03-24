@@ -157,7 +157,7 @@ router.post('/create-subscription-invoice', authenticate, async (req, res) => {
 
 // ── IPN Webhook (NOWPayments callback) ─────────────
 
-router.post('/ipn', express.json(), async (req, res) => {
+router.post('/ipn', async (req, res) => {
   try {
     const signature = req.headers['x-nowpayments-sig'];
     const body = req.body;
