@@ -277,12 +277,16 @@ app.use((req, res, next) => {
         const redirectUrl = proxyRes.headers.location;
         proxyRes.resume();
 
+        const redirectOpts = { timeout: 30000 };
+        if (agent) redirectOpts.agent = agent;
         const client = redirectUrl.startsWith('https') ? require('https') : require('http');
-        const redirectReq = client.get(redirectUrl, { timeout: 30000 }, (redirectRes) => {
+        const redirectReq = client.get(redirectUrl, redirectOpts, (redirectRes) => {
           if ([301, 302, 307, 308].includes(redirectRes.statusCode) && redirectRes.headers.location) {
             redirectRes.resume();
+            const redirect2Opts = { timeout: 30000 };
+            if (agent) redirect2Opts.agent = agent;
             const client2 = redirectRes.headers.location.startsWith('https') ? require('https') : require('http');
-            client2.get(redirectRes.headers.location, { timeout: 30000 }, (finalRes) => {
+            client2.get(redirectRes.headers.location, redirect2Opts, (finalRes) => {
               const hdrs = { ...finalRes.headers };
               delete hdrs['content-security-policy'];
               hdrs['cache-control'] = 'no-store, no-cache';
@@ -584,8 +588,10 @@ app.use('/stream/:proxySubdomain', (req, res) => {
     const proxyReq = client.get(targetUrl, proxyReqOpts, (proxyRes) => {
       if ([301, 302, 307, 308].includes(proxyRes.statusCode) && proxyRes.headers.location) {
         proxyRes.resume();
+        const tokenRedirectOpts = { timeout: 30000 };
+        if (agent) tokenRedirectOpts.agent = agent;
         const cl2 = proxyRes.headers.location.startsWith('https') ? require('https') : require('http');
-        cl2.get(proxyRes.headers.location, { timeout: 30000 }, (finalRes) => {
+        cl2.get(proxyRes.headers.location, tokenRedirectOpts, (finalRes) => {
           const hdrs = { ...finalRes.headers };
           delete hdrs['content-security-policy'];
           hdrs['cache-control'] = 'no-store, no-cache';
