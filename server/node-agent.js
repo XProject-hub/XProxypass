@@ -262,13 +262,15 @@ function handleProxyResponse(proxyRes, req, res, record, proxyHost) {
   const targetHostname = targetHost ? targetHost.split(':')[0] : '';
   const proxyHostname = proxyHost.split(':')[0];
 
+  const proxyProto = req.headers['x-forwarded-proto'] || 'http';
+
   function rewriteUrl(str) {
     if (!str) return str;
     if (targetHost) {
-      str = str.split(`https://www.${targetHost}`).join(`https://${proxyHost}`);
-      str = str.split(`http://www.${targetHost}`).join(`https://${proxyHost}`);
-      str = str.split(targetOrigin).join(`https://${proxyHost}`);
-      str = str.split(`http://${targetHost}`).join(`https://${proxyHost}`);
+      str = str.split(`https://www.${targetHost}`).join(`${proxyProto}://${proxyHost}`);
+      str = str.split(`http://www.${targetHost}`).join(`${proxyProto}://${proxyHost}`);
+      str = str.split(targetOrigin).join(`${proxyProto}://${proxyHost}`);
+      str = str.split(`http://${targetHost}`).join(`${proxyProto}://${proxyHost}`);
       str = str.split(`www.${targetHost}`).join(proxyHost);
       str = str.split(targetHost).join(proxyHost);
     }
@@ -289,7 +291,7 @@ function handleProxyResponse(proxyRes, req, res, record, proxyHost) {
       if (u.host === proxyHost || u.hostname === 'localhost') return match;
       if (SKIP_HOST.test(u.hostname)) return match;
       const port = u.port && u.port !== '80' && u.port !== '443' ? `:${u.port}` : '';
-      return `https://${proxyHostname}${port}${u.pathname}${u.search}${u.hash}`;
+      return `${proxyProto}://${proxyHostname}${port}${u.pathname}${u.search}${u.hash}`;
     } catch { return match; }
   }
 
