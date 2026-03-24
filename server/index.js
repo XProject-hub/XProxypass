@@ -19,6 +19,7 @@ const proxyRoutes = require('./routes/proxy.routes');
 const statsRoutes = require('./routes/stats.routes');
 const adminRoutes = require('./routes/admin.routes');
 const paypalRoutes = require('./routes/paypal.routes');
+const nodeRoutes = require('./routes/node.routes');
 
 const app = express();
 const proxy = httpProxy.createProxyServer({ xfwd: true });
@@ -470,6 +471,22 @@ app.use('/api/proxies', proxyRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/paypal', paypalRoutes);
+app.use('/api/node', nodeRoutes);
+
+app.get('/api/node/agent-script', (req, res) => {
+  const secret = req.headers['x-node-secret'];
+  if (!secret || secret !== config.nodeSecret) {
+    return res.status(401).send('Unauthorized');
+  }
+  const fs = require('fs');
+  const agentPath = path.join(__dirname, 'node-agent.js');
+  if (fs.existsSync(agentPath)) {
+    res.setHeader('Content-Type', 'application/javascript');
+    res.send(fs.readFileSync(agentPath, 'utf8'));
+  } else {
+    res.status(404).send('Agent script not found');
+  }
+});
 
 app.get('/api/server-connections', (req, res) => {
   res.json({ servers: serverConnections, proxies: activeConnections });

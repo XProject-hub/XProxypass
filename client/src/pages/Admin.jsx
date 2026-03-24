@@ -712,8 +712,8 @@ export default function Admin() {
 
               <div className="glass rounded-xl p-4 mb-6">
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Add your own VPS servers as proxy nodes. Enter the server IP, SSH credentials, and country - the system will automatically connect via SSH and install Squid proxy.
-                  Own servers have priority over free proxies for country routing.
+                  Add VPS servers as proxy nodes. The system will auto-install the ProxyXPass Node Agent via SSH.
+                  Each node handles proxy traffic using its own bandwidth. DNS records are auto-created when users select a country with an available node.
                 </p>
               </div>
 

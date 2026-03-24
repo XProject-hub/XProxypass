@@ -1,6 +1,7 @@
 const express = require('express');
 const { authenticate } = require('../auth');
 const db = require('../database');
+const dnsManager = require('../dns-manager');
 
 const router = express.Router();
 
@@ -102,7 +103,7 @@ router.get('/', (req, res) => {
   }
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { subdomain, target_url, country, validity, proxy_domain } = req.body;
 
@@ -167,6 +168,13 @@ router.post('/', (req, res) => {
     const proxy = db.getProxyById(result.lastInsertRowid);
 
     db.addActivityLog(req.user.id, user.username, req.ip, 'Proxy', 'Create', `${sub}.${selectedDomain} -> ${target_url} [${selectedCountry}] [${plan.label}]`);
+
+    if (dnsManager.isConfigured() && selectedCountry !== 'auto') {
+      const nodeIP = await dnsManager.getNodeIPForCountry(selectedCountry, db);
+      if (nodeIP) {
+        dnsManager.createARecord(sub, selectedDomain, nodeIP).catch(() => {});
+      }
+    }
 
     res.status(201).json({ proxy });
   } catch (err) {
@@ -308,6 +316,9 @@ router.delete('/:id', (req, res) => {
 
     if (proxy) {
       db.addActivityLog(req.user.id, req.user.username, req.ip, 'Proxy', 'Delete', proxy.subdomain);
+      if (dnsManager.isConfigured() && proxy.proxy_domain) {
+        dnsManager.deleteARecord(proxy.subdomain, proxy.proxy_domain).catch(() => {});
+      }
     }
 
     res.json({ message: 'Proxy deleted' });

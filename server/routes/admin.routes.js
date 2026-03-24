@@ -1,6 +1,7 @@
 const express = require('express');
 const { authenticate } = require('../auth');
 const db = require('../database');
+const dnsManager = require('../dns-manager');
 
 const router = express.Router();
 
@@ -108,6 +109,8 @@ router.get('/settings', (req, res) => {
   try {
     res.json({
       registration_open: db.getSetting('registration_open') !== 'false',
+      dns_configured: dnsManager.isConfigured(),
+      node_system: true,
     });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
@@ -270,10 +273,17 @@ router.post('/servers', async (req, res) => {
     res.status(201).json({ server, message: 'Server added. Installation starting...' });
 
     try {
-      await setupServer(ip, ssh_port || 22, username || 'root', password);
+      const config = require('../config');
+      const masterUrl = `https://${config.domain}`;
+      await setupServer(ip, ssh_port || 22, username || 'root', password, {
+        masterUrl,
+        nodeSecret: config.nodeSecret,
+        nodeId: String(server.id),
+        domain: config.domain,
+      });
       db.updateServerStatus(server.id, 'online');
-      db.addActivityLog(req.user.id, req.user.username, req.ip, 'Server', 'InstallSuccess', `${ip} (${country}) - Squid installed`);
-      console.log(`[Admin] Server ${ip} setup complete`);
+      db.addActivityLog(req.user.id, req.user.username, req.ip, 'Server', 'InstallSuccess', `${ip} (${country}) - Node Agent installed`);
+      console.log(`[Admin] Server ${ip} setup complete - Node Agent deployed`);
     } catch (err) {
       db.updateServerStatus(server.id, 'error');
       db.addActivityLog(req.user.id, req.user.username, req.ip, 'Server', 'InstallFailed', `${ip}: ${err.message}`);

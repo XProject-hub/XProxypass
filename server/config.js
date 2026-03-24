@@ -9,4 +9,7 @@ module.exports = {
   paypalClientId: process.env.PAYPAL_CLIENT_ID || '',
   paypalSecret: process.env.PAYPAL_SECRET || '',
   paypalSandbox: process.env.PAYPAL_SANDBOX === 'true',
+  nodeSecret: process.env.NODE_SECRET || 'change-this-node-secret',
+  cloudflareToken: process.env.CLOUDFLARE_TOKEN || '',
+  cloudflareZoneId: process.env.CLOUDFLARE_ZONE_ID || '',
 };
