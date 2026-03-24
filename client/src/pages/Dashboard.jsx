@@ -245,6 +245,7 @@ export default function Dashboard() {
                 onRenew={handleRenew}
                 onRequestStream={handleRequestStream}
                 onEdit={handleEdit}
+                onUpdate={(updated) => setProxies(prev => prev.map(p => p.id === updated.id ? updated : p))}
               />
             ))}
           </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Globe, ArrowRight, Pause, Play, Trash2, ExternalLink, MapPin, Clock, RefreshCw, Radio, Edit3, Check, X } from 'lucide-react';
+import { Globe, ArrowRight, Pause, Play, Trash2, ExternalLink, MapPin, Clock, RefreshCw, Radio, Edit3, Check, X, Lock, Unlock, Key, Copy, Loader2 } from 'lucide-react';
 
-export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, onRequestStream, onEdit }) {
+export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, onRequestStream, onEdit, onUpdate }) {
   const proxyUrl = `${proxy.subdomain}.${proxy.proxy_domain || domain}`;
   const isExpired = proxy.expires_at && new Date(proxy.expires_at) < new Date();
   const [showRenew, setShowRenew] = useState(false);
@@ -12,6 +12,11 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, 
   const [editTarget, setEditTarget] = useState(proxy.target_url);
   const [editCountry, setEditCountry] = useState(proxy.country || 'auto');
   const [countries, setCountries] = useState([]);
+  const [showTokens, setShowTokens] = useState(false);
+  const [tokens, setTokens] = useState([]);
+  const [tokenHours, setTokenHours] = useState(24);
+  const [generatingToken, setGeneratingToken] = useState(false);
+  const [ipLocking, setIpLocking] = useState(false);
 
   const [liveData, setLiveData] = useState({ connections: 0, bandwidth_mbps: '0.00' });
 
@@ -54,6 +59,52 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, 
     }
   };
 
+  const handleIpLock = async () => {
+    setIpLocking(true);
+    try {
+      if (proxy.ip_lock) {
+        const res = await fetch(`/api/proxies/${proxy.id}/ip-lock`, { method: 'DELETE' });
+        if (res.ok && onUpdate) { const d = await res.json(); onUpdate(d.proxy); }
+      } else {
+        const res = await fetch(`/api/proxies/${proxy.id}/ip-lock`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        if (res.ok && onUpdate) { const d = await res.json(); onUpdate(d.proxy); }
+      }
+    } catch {} finally { setIpLocking(false); }
+  };
+
+  const loadTokens = async () => {
+    try {
+      const res = await fetch(`/api/proxies/${proxy.id}/tokens`);
+      if (res.ok) setTokens((await res.json()).tokens || []);
+    } catch {}
+  };
+
+  const generateToken = async () => {
+    setGeneratingToken(true);
+    try {
+      const res = await fetch(`/api/proxies/${proxy.id}/generate-token`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ duration_hours: tokenHours }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        loadTokens();
+        try { navigator.clipboard.writeText(data.url); } catch {}
+        alert(`Token URL copied!\n\n${data.url}\n\nExpires in ${tokenHours} hours.`);
+      }
+    } catch {} finally { setGeneratingToken(false); }
+  };
+
+  const revokeToken = async (tokenId) => {
+    try {
+      await fetch(`/api/proxies/${proxy.id}/tokens/${tokenId}`, { method: 'DELETE' });
+      loadTokens();
+    } catch {}
+  };
+
   return (
     <div className="glass rounded-xl p-5 group glass-hover">
       <div className="flex items-start justify-between mb-4">
@@ -82,6 +133,11 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, 
                   Stream Pending
                 </span>
               )}
+              {proxy.ip_lock && (
+                <span className="text-[10px] font-medium text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                  <Lock className="w-2.5 h-2.5" /> {proxy.ip_lock}
+                </span>
+              )}
             </div>
             <a href={`http://${proxyUrl}`} target="_blank" rel="noopener noreferrer"
               className="text-xs text-slate-500 hover:text-cyan-400 transition-colors flex items-center gap-1 mt-0.5">
@@ -94,6 +150,17 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, 
           <button onClick={openEdit} className="p-2 rounded-lg hover:bg-blue-500/10 text-slate-500 hover:text-blue-400 transition-all" title="Edit">
             <Edit3 className="w-4 h-4" />
           </button>
+          <button onClick={handleIpLock} disabled={ipLocking}
+            className={`p-2 rounded-lg transition-all ${proxy.ip_lock ? 'hover:bg-emerald-500/10 text-rose-400 hover:text-emerald-400' : 'hover:bg-rose-500/10 text-slate-500 hover:text-rose-400'}`}
+            title={proxy.ip_lock ? `Unlock (locked to ${proxy.ip_lock})` : 'Lock to your IP'}>
+            {ipLocking ? <Loader2 className="w-4 h-4 animate-spin" /> : proxy.ip_lock ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+          </button>
+          {proxy.stream_proxy === 2 && (
+            <button onClick={() => { setShowTokens(!showTokens); if (!showTokens) loadTokens(); }}
+              className="p-2 rounded-lg hover:bg-amber-500/10 text-slate-500 hover:text-amber-400 transition-all" title="Stream Tokens">
+              <Key className="w-4 h-4" />
+            </button>
+          )}
           {proxy.stream_proxy === 0 && onRequestStream && (
             <button onClick={() => onRequestStream(proxy.id)} className="p-2 rounded-lg hover:bg-purple-500/10 text-slate-500 hover:text-purple-400 transition-all" title="Request Stream Proxy">
               <Radio className="w-4 h-4" />
@@ -227,6 +294,61 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, 
                 : <><RefreshCw className="w-3 h-3" /> Renew</>}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Token Management Panel */}
+      {showTokens && proxy.stream_proxy === 2 && (
+        <div className="mt-3 pt-3 border-t border-white/[0.04]">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-medium text-slate-300">Stream Tokens</span>
+            <div className="flex items-center gap-2">
+              <select value={tokenHours} onChange={e => setTokenHours(parseInt(e.target.value))}
+                className="bg-white/[0.03] border border-white/[0.06] rounded px-2 py-1 text-[10px] text-slate-300" style={{ background: 'rgba(255,255,255,0.02)' }}>
+                <option value="1" style={{ background: '#0d0d14' }}>1 hour</option>
+                <option value="6" style={{ background: '#0d0d14' }}>6 hours</option>
+                <option value="24" style={{ background: '#0d0d14' }}>24 hours</option>
+                <option value="72" style={{ background: '#0d0d14' }}>3 days</option>
+                <option value="168" style={{ background: '#0d0d14' }}>7 days</option>
+                <option value="720" style={{ background: '#0d0d14' }}>30 days</option>
+              </select>
+              <button onClick={generateToken} disabled={generatingToken}
+                className="btn-primary text-[10px] flex items-center gap-1" style={{ padding: '0.3rem 0.6rem' }}>
+                {generatingToken ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Key className="w-3 h-3" /> Generate</>}
+              </button>
+            </div>
+          </div>
+          {tokens.length > 0 && (
+            <div className="space-y-1.5 max-h-32 overflow-y-auto">
+              {tokens.map(t => (
+                <div key={t.id} className="flex items-center justify-between p-2 rounded bg-white/[0.02] text-[10px]">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`font-mono truncate ${t.is_expired ? 'text-red-400 line-through' : 'text-slate-400'}`}>
+                      {t.token.slice(0, 16)}...
+                    </span>
+                    <span className={t.is_expired ? 'text-red-400' : 'text-slate-500'}>
+                      {t.is_expired ? 'Expired' : `Expires ${new Date(t.expires_at * 1000).toLocaleString()}`}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {!t.is_expired && (
+                      <button onClick={() => {
+                        const url = `https://${proxy.proxy_domain || domain}/stream/${proxy.subdomain}?token=${t.token}`;
+                        navigator.clipboard.writeText(url).then(() => alert('Token URL copied!')).catch(() => {});
+                      }} className="p-1 rounded hover:bg-cyan-500/10 text-slate-600 hover:text-cyan-400" title="Copy URL">
+                        <Copy className="w-3 h-3" />
+                      </button>
+                    )}
+                    <button onClick={() => revokeToken(t.id)}
+                      className="p-1 rounded hover:bg-red-500/10 text-slate-600 hover:text-red-400" title="Revoke">
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {tokens.length === 0 && <p className="text-[10px] text-slate-600 text-center py-2">No tokens generated</p>}
         </div>
       )}
     </div>
