@@ -103,6 +103,7 @@ router.post('/login', (req, res) => {
         email: user.email,
         is_admin: user.is_admin,
         credits: user.credits,
+        role: user.role || 'user',
         created_at: user.created_at,
       },
     });

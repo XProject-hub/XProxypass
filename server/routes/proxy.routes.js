@@ -127,6 +127,16 @@ router.post('/', async (req, res) => {
       return res.status(403).json({ error: `Insufficient credits. ${plan.label} requires ${plan.credits} credit${plan.credits > 1 ? 's' : ''}.` });
     }
 
+    if (user.parent_id) {
+      const reseller = db.getUserById(user.parent_id);
+      if (reseller && reseller.max_proxies > 0) {
+        const currentCount = db.countProxiesByParent(user.parent_id);
+        if (currentCount >= reseller.max_proxies) {
+          return res.status(403).json({ error: 'Proxy limit reached for your reseller account.' });
+        }
+      }
+    }
+
     const sub = subdomain.toLowerCase().trim();
 
     if (sub.length < 2 || sub.length > 32) {
@@ -306,6 +316,105 @@ router.post('/:id/request-stream', (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// ── IP Lock ────────────────────────────────────────
+
+router.post('/:id/ip-lock', (req, res) => {
+  try {
+    const proxy = db.getProxyById(req.params.id);
+    if (!proxy || proxy.user_id !== req.user.id) {
+      return res.status(404).json({ error: 'Proxy not found' });
+    }
+    const ip = req.body.ip || req.ip;
+    db.setIpLock(proxy.id, ip);
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Proxy', 'IpLock', `${proxy.subdomain} locked to ${ip}`);
+    res.json({ message: 'IP lock set', ip_lock: ip, proxy: db.getProxyById(proxy.id) });
+  } catch (err) {
+    console.error('IP lock error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.delete('/:id/ip-lock', (req, res) => {
+  try {
+    const proxy = db.getProxyById(req.params.id);
+    if (!proxy || proxy.user_id !== req.user.id) {
+      return res.status(404).json({ error: 'Proxy not found' });
+    }
+    db.setIpLock(proxy.id, null);
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Proxy', 'IpUnlock', `${proxy.subdomain} unlocked`);
+    res.json({ message: 'IP lock removed', proxy: db.getProxyById(proxy.id) });
+  } catch (err) {
+    console.error('IP unlock error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ── Stream Tokens ──────────────────────────────────
+
+router.post('/:id/generate-token', (req, res) => {
+  try {
+    const proxy = db.getProxyById(req.params.id);
+    if (!proxy || proxy.user_id !== req.user.id) {
+      return res.status(404).json({ error: 'Proxy not found' });
+    }
+    if (proxy.stream_proxy !== 2) {
+      return res.status(400).json({ error: 'Stream proxy must be approved to generate tokens' });
+    }
+
+    const crypto = require('crypto');
+    const durationHours = parseInt(req.body.duration_hours) || 24;
+    const token = crypto.randomBytes(24).toString('hex');
+    const expiresAt = Math.floor(Date.now() / 1000) + (durationHours * 3600);
+
+    db.createStreamToken(token, proxy.id, expiresAt);
+
+    const config = require('../config');
+    const domain = proxy.proxy_domain || config.domain;
+    const streamUrl = `https://${domain}/stream/${proxy.subdomain}?token=${token}`;
+
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Stream', 'TokenCreated', `${proxy.subdomain} (${durationHours}h)`);
+
+    res.json({ token, url: streamUrl, expires_at: expiresAt });
+  } catch (err) {
+    console.error('Generate token error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/:id/tokens', (req, res) => {
+  try {
+    const proxy = db.getProxyById(req.params.id);
+    if (!proxy || proxy.user_id !== req.user.id) {
+      return res.status(404).json({ error: 'Proxy not found' });
+    }
+    const now = Math.floor(Date.now() / 1000);
+    const tokens = db.getTokensByProxy(proxy.id).map(t => ({
+      ...t,
+      is_expired: t.expires_at < now,
+    }));
+    res.json({ tokens });
+  } catch (err) {
+    console.error('Get tokens error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.delete('/:id/tokens/:tokenId', (req, res) => {
+  try {
+    const proxy = db.getProxyById(req.params.id);
+    if (!proxy || proxy.user_id !== req.user.id) {
+      return res.status(404).json({ error: 'Proxy not found' });
+    }
+    db.deleteStreamToken(req.params.tokenId, proxy.id);
+    res.json({ message: 'Token revoked' });
+  } catch (err) {
+    console.error('Delete token error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ── Delete Proxy ───────────────────────────────────
 
 router.delete('/:id', (req, res) => {
   try {

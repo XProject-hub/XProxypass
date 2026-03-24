@@ -12,10 +12,23 @@ const zlib = require('zlib');
 const httpProxy = require('http-proxy');
 require('events').EventEmitter.defaultMaxListeners = 0;
 
+const net = require('net');
+
 const MASTER_URL = process.env.MASTER_URL || 'https://proxyxpass.com';
 const NODE_SECRET = process.env.NODE_SECRET || '';
 const NODE_PORT = parseInt(process.env.NODE_PORT, 10) || 3000;
 const NODE_ID = process.env.NODE_ID || '';
+
+function checkLocalSquid() {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    socket.setTimeout(3000);
+    socket.on('connect', () => { socket.destroy(); resolve(true); });
+    socket.on('timeout', () => { socket.destroy(); resolve(false); });
+    socket.on('error', () => { socket.destroy(); resolve(false); });
+    socket.connect(3128, '127.0.0.1');
+  });
+}
 
 const proxy = httpProxy.createProxyServer({ xfwd: true });
 const proxyCache = {};
@@ -126,8 +139,14 @@ setInterval(async () => {
 
 const server = http.createServer(async (req, res) => {
   if (req.url === '/health') {
+    const squidOk = await checkLocalSquid();
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ status: 'ok', node_id: NODE_ID, connections: activeConnections, uptime: process.uptime() }));
+    return res.end(JSON.stringify({
+      status: 'ok', node_id: NODE_ID,
+      connections: activeConnections,
+      squid: squidOk ? 'running' : 'down',
+      uptime: process.uptime(),
+    }));
   }
 
   const result = getSubdomain(req.headers.host?.split(':')[0]);
@@ -142,6 +161,12 @@ const server = http.createServer(async (req, res) => {
   if (!record || !record.is_active || (record.expires_at && new Date(record.expires_at) < new Date())) {
     res.writeHead(404, { 'Content-Type': 'text/html' });
     return res.end('<html><body style="background:#06060a;color:#f1f5f9;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif"><div style="text-align:center"><h1 style="font-size:4rem;background:linear-gradient(135deg,#06b6d4,#3b82f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">404</h1><p style="color:#94a3b8">Proxy not found or inactive</p></div></body></html>');
+  }
+
+  const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || req.socket?.remoteAddress;
+  if (record.ip_lock && record.ip_lock !== clientIp) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: 'Access denied. This proxy is locked to a specific IP.' }));
   }
 
   const DNS_BW_LIMIT = 50;
@@ -254,19 +279,44 @@ function handleProxyResponse(proxyRes, req, res, record, proxyHost) {
   const SKIP_EXT = /\.(png|jpg|jpeg|gif|svg|ico|webp|bmp|css|woff|woff2|ttf|eot)$/i;
   const SKIP_HOST = /m3uassets\.com|imgur\.com|googleusercontent\.com|cloudinary\.com|cdn\./i;
 
+  function rewriteExternalUrl(match) {
+    try {
+      if (SKIP_EXT.test(match)) return match;
+      const u = new URL(match);
+      if (u.host === proxyHost || u.hostname === 'localhost') return match;
+      if (SKIP_HOST.test(u.hostname)) return match;
+      const port = u.port && u.port !== '80' && u.port !== '443' ? `:${u.port}` : '';
+      return `https://${proxyHostname}${port}${u.pathname}${u.search}${u.hash}`;
+    } catch { return match; }
+  }
+
+  function rewriteM3UContent(str) {
+    if (!str) return str;
+    const lines = str.split('\n');
+    const result = [];
+    for (let i = 0; i < lines.length; i++) {
+      let line = lines[i];
+      if (line.startsWith('#EXTINF') || line.startsWith('#EXTM3U') || line.startsWith('#EXT')) {
+        line = line.replace(/tvg-url="([^"]*)"/g, (m, url) => `tvg-url="${rewriteUrl(url)}"`);
+        line = line.replace(/catchup-source="([^"]*)"/g, (m, url) => `catchup-source="${rewriteUrl(url)}"`);
+        line = line.replace(/url-epg="([^"]*)"/g, (m, url) => `url-epg="${rewriteUrl(url)}"`);
+        result.push(line);
+      } else if (line.match(/^https?:\/\//)) {
+        result.push(line.replace(/https?:\/\/[a-zA-Z0-9.-]+(?::\d+)?(?:\/[^\s]*)?/g, rewriteExternalUrl));
+      } else {
+        result.push(rewriteUrl(line));
+      }
+    }
+    return result.join('\n');
+  }
+
   function rewriteAll(str) {
     if (!str) return str;
     str = rewriteUrl(str);
     if (record.stream_proxy === 2) {
-      str = str.replace(/https?:\/\/[a-zA-Z0-9.-]+(?::\d+)?(?:\/[^\s"'<>)]*)?/g, (match) => {
-        try {
-          if (SKIP_EXT.test(match)) return match;
-          const u = new URL(match);
-          if (u.host === proxyHost || u.hostname === 'localhost') return match;
-          if (SKIP_HOST.test(u.hostname)) return match;
-          return match.replace(`${u.protocol}//${u.host}`, `https://${proxyHost}`);
-        } catch { return match; }
-      });
+      const isM3U = str.trimStart().startsWith('#EXTM3U') || str.trimStart().startsWith('#EXTINF');
+      if (isM3U) return rewriteM3UContent(str);
+      str = str.replace(/https?:\/\/[a-zA-Z0-9.-]+(?::\d+)?(?:\/[^\s"'<>)]*)?/g, rewriteExternalUrl);
     }
     return str;
   }
@@ -292,7 +342,7 @@ function handleProxyResponse(proxyRes, req, res, record, proxyHost) {
   delete newHeaders['last-modified'];
 
   const reqPath = (req.url || '').toLowerCase();
-  const isM3U = reqPath.includes('get.php') || reqPath.includes('.m3u') || reqPath.includes('player_api') || reqPath.includes('xmltv') || reqPath.includes('epg');
+  const isM3U = reqPath.includes('get.php') || reqPath.includes('.m3u') || reqPath.includes('.m3u8') || reqPath.includes('player_api') || reqPath.includes('xmltv') || reqPath.includes('epg');
 
   const isRewritable = contentType.includes('text') || contentType.includes('json') ||
     contentType.includes('mpegurl') || contentType.includes('x-mpegURL') ||

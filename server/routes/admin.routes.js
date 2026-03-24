@@ -71,6 +71,41 @@ router.patch('/users/:id/admin', (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
+router.patch('/users/:id/role', (req, res) => {
+  try {
+    const { role } = req.body;
+    if (!['user', 'reseller', 'admin'].includes(role)) {
+      return res.status(400).json({ error: 'Role must be user, reseller, or admin' });
+    }
+    const user = db.getUserById(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    db.updateUserRole(req.params.id, role);
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'User', 'RoleChange', `${user.username}: ${user.role || 'user'} -> ${role}`);
+
+    res.json({ user: db.getUserById(req.params.id) });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
+router.post('/users/:id/reseller-limits', (req, res) => {
+  try {
+    const { max_proxies, max_users, max_bandwidth } = req.body;
+    const user = db.getUserById(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    db.updateResellerLimits(
+      req.params.id,
+      parseInt(max_proxies) || 0,
+      parseInt(max_users) || 0,
+      parseInt(max_bandwidth) || 0
+    );
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'User', 'ResellerLimits',
+      `${user.username}: proxies=${max_proxies || 0}, users=${max_users || 0}, bw=${max_bandwidth || 0}Mbps`);
+
+    res.json({ user: db.getUserById(req.params.id) });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
 router.delete('/users/:id', (req, res) => {
   try {
     const { id } = req.params;

@@ -35,6 +35,7 @@ router.post('/validate-proxy', (req, res) => {
         expires_at: proxy.expires_at,
         proxy_domain: proxy.proxy_domain,
         requests_count: proxy.requests_count,
+        ip_lock: proxy.ip_lock || null,
       },
     });
   } catch (err) {

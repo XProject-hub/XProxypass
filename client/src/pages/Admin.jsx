@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { io } from 'socket.io-client';
 import Navbar from '../components/Navbar';
 import {
   Users, Globe, Activity, Trash2, Shield, ShieldOff, UserPlus,
   Plus, Loader2, ArrowLeft, CreditCard, ScrollText,
   LayoutList, Clock, MapPin, Server, RefreshCw, Wifi, WifiOff, CheckCircle2,
-  Play, Square, RotateCcw, Power, Edit3
+  Play, Square, RotateCcw, Power, Edit3, Zap
 } from 'lucide-react';
 
 import { Radio, Link2 } from 'lucide-react';
@@ -42,6 +43,15 @@ export default function Admin() {
   const [editServerModal, setEditServerModal] = useState(null);
   const [serverForm, setServerForm] = useState({ ip: '', ssh_port: '22', username: 'root', password: '', country: 'US', label: '', max_connections: '100', bandwidth_limit: '1Gbps' });
   const [serverInstalling, setServerInstalling] = useState(false);
+  const [liveStats, setLiveStats] = useState({ active_users: 0, bandwidth_mbps: '0', requests_per_sec: 0 });
+  const socketRef = useRef(null);
+
+  useEffect(() => {
+    const socket = io({ path: '/ws', transports: ['websocket', 'polling'] });
+    socket.on('stats', (data) => setLiveStats(data));
+    socketRef.current = socket;
+    return () => socket.disconnect();
+  }, []);
 
   useEffect(() => { loadData(); }, []);
 
@@ -122,7 +132,31 @@ export default function Admin() {
     });
     if (res.ok) {
       const data = await res.json();
-      setUsers(prev => prev.map(u => u.id === id ? { ...u, is_admin: data.user.is_admin } : u));
+      setUsers(prev => prev.map(u => u.id === id ? { ...u, is_admin: data.user.is_admin, role: data.user.role } : u));
+    }
+  };
+
+  const changeRole = async (id, role) => {
+    const res = await fetch(`/api/admin/users/${id}/role`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setUsers(prev => prev.map(u => u.id === id ? data.user : u));
+      showToast(`Role changed to ${role}`);
+    }
+  };
+
+  const saveResellerLimits = async (id, limits) => {
+    const res = await fetch(`/api/admin/users/${id}/reseller-limits`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(limits),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setUsers(prev => prev.map(u => u.id === id ? data.user : u));
+      showToast('Reseller limits saved');
     }
   };
 
@@ -360,6 +394,31 @@ export default function Admin() {
         {/* Main Content */}
         <main className="flex-1 p-6 md:p-8 pb-24 md:pb-8 overflow-x-auto">
 
+          {/* Live Stats Bar */}
+          <div className="glass rounded-xl p-4 mb-6 flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-xs text-slate-500 uppercase tracking-wider">Live</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-cyan-400" />
+                <span className="text-lg font-bold text-slate-100">{liveStats.active_users}</span>
+                <span className="text-xs text-slate-500">active</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-blue-400" />
+                <span className="text-lg font-bold text-slate-100">{liveStats.bandwidth_mbps}</span>
+                <span className="text-xs text-slate-500">Mbps</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-amber-400" />
+                <span className="text-lg font-bold text-slate-100">{liveStats.requests_per_sec}</span>
+                <span className="text-xs text-slate-500">req/s</span>
+              </div>
+            </div>
+          </div>
+
           {/* Proxies Tab */}
           {tab === 'proxies' && (
             <div>
@@ -443,18 +502,20 @@ export default function Admin() {
                           <td className="px-4 py-3 text-slate-400 text-xs">{u.email}</td>
                           <td className="px-4 py-3 text-cyan-400 font-semibold text-xs">{u.credits}</td>
                           <td className="px-4 py-3">
-                            <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${u.is_admin ? 'text-amber-400 bg-amber-500/10' : 'text-slate-500 bg-white/[0.03]'}`}>
-                              {u.is_admin ? 'Admin' : 'User'}
-                            </span>
+                            <select value={u.role || 'user'} onChange={e => changeRole(u.id, e.target.value)}
+                              className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-transparent border-0 cursor-pointer ${
+                                u.role === 'admin' ? 'text-amber-400' : u.role === 'reseller' ? 'text-purple-400' : 'text-slate-500'
+                              }`}>
+                              <option value="user" className="bg-[#0a0a14] text-slate-300">User</option>
+                              <option value="reseller" className="bg-[#0a0a14] text-purple-400">Reseller</option>
+                              <option value="admin" className="bg-[#0a0a14] text-amber-400">Admin</option>
+                            </select>
                           </td>
                           <td className="px-4 py-3 text-slate-500 text-xs">{new Date(u.created_at).toLocaleDateString()}</td>
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-end gap-1">
                               <button onClick={() => { setCreditModal(u); setCreditAmount(''); }} className="p-1.5 rounded-lg hover:bg-cyan-500/10 text-slate-600 hover:text-cyan-400 transition-all" title="Add Credits">
                                 <CreditCard className="w-3.5 h-3.5" />
-                              </button>
-                              <button onClick={() => toggleAdmin(u.id, u.is_admin)} className="p-1.5 rounded-lg hover:bg-amber-500/10 text-slate-600 hover:text-amber-400 transition-all" title={u.is_admin ? 'Remove Admin' : 'Make Admin'}>
-                                {u.is_admin ? <ShieldOff className="w-3.5 h-3.5" /> : <Shield className="w-3.5 h-3.5" />}
                               </button>
                               <button onClick={() => deleteUser(u.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-slate-600 hover:text-red-400 transition-all" title="Delete">
                                 <Trash2 className="w-3.5 h-3.5" />

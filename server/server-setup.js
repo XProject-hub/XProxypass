@@ -22,6 +22,23 @@ if ! command -v nginx &> /dev/null; then
   apt-get install -y nginx
 fi
 
+# Install and configure Squid proxy
+apt-get install -y squid 2>/dev/null || apt-get update -y && apt-get install -y squid
+cat > /etc/squid/squid.conf << 'SQUIDCONF'
+http_port 3128
+acl all src 0.0.0.0/0
+http_access allow all
+forwarded_for on
+via off
+cache_mem 64 MB
+cache deny all
+max_filedescriptors 65535
+visible_hostname proxyxpass-node
+SQUIDCONF
+systemctl enable squid
+systemctl restart squid
+ufw allow 3128/tcp 2>/dev/null
+
 # Create app directory
 mkdir -p /opt/proxyxpass-node
 cd /opt/proxyxpass-node

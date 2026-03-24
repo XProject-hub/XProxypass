@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../App';
 import Navbar from '../components/Navbar';
 import ProxyCard from '../components/ProxyCard';
-import { Plus, Server, Activity, Globe, Loader2, CreditCard, ShieldCheck } from 'lucide-react';
+import { Plus, Server, Activity, Globe, Loader2, CreditCard, ShieldCheck, Users } from 'lucide-react';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -149,6 +149,11 @@ export default function Dashboard() {
             {user?.is_admin === 1 && (
               <Link to="/admin" className="btn-secondary flex items-center gap-2 text-sm" style={{ padding: '0.6rem 1rem' }}>
                 <ShieldCheck className="w-4 h-4" /> Admin Panel
+              </Link>
+            )}
+            {(user?.role === 'reseller' || user?.is_admin === 1) && (
+              <Link to="/reseller" className="btn-secondary flex items-center gap-2 text-sm" style={{ padding: '0.6rem 1rem' }}>
+                <Users className="w-4 h-4" /> Reseller Panel
               </Link>
             )}
             <Link to="/dashboard/buy" className="btn-secondary flex items-center gap-2 text-sm" style={{ padding: '0.6rem 1rem' }}>

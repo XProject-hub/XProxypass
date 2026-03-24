@@ -115,6 +115,31 @@ try { db.exec('ALTER TABLE proxy_servers ADD COLUMN ssh_port INTEGER DEFAULT 22'
 try { db.exec("ALTER TABLE proxy_servers ADD COLUMN ssh_user TEXT DEFAULT 'root'"); } catch {}
 try { db.exec('ALTER TABLE proxy_servers ADD COLUMN ssh_pass TEXT'); } catch {}
 
+// Reseller system
+try { db.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'"); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN parent_id INTEGER DEFAULT NULL'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN max_proxies INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN max_users INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN max_bandwidth INTEGER DEFAULT 0'); } catch {}
+
+// IP lock
+try { db.exec('ALTER TABLE proxies ADD COLUMN ip_lock TEXT DEFAULT NULL'); } catch {}
+
+// Stream tokens
+db.exec(`
+  CREATE TABLE IF NOT EXISTS stream_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    token TEXT UNIQUE NOT NULL,
+    proxy_id INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (proxy_id) REFERENCES proxies(id) ON DELETE CASCADE
+  );
+`);
+
+// Sync role column with is_admin for existing admins
+try { db.exec("UPDATE users SET role = 'admin' WHERE is_admin = 1 AND (role IS NULL OR role = 'user')"); } catch {}
+
 const COUNTRIES = [
   { code: 'auto', name: 'Auto (Nearest)' },
   { code: 'US', name: 'United States' },
@@ -134,7 +159,7 @@ const stmts = {
   createUser: db.prepare('INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)'),
   getUserByEmail: db.prepare('SELECT * FROM users WHERE email = ?'),
   getUserByUsername: db.prepare('SELECT * FROM users WHERE username = ?'),
-  getUserById: db.prepare('SELECT id, username, email, is_admin, credits, created_at FROM users WHERE id = ?'),
+  getUserById: db.prepare('SELECT id, username, email, is_admin, credits, role, parent_id, max_proxies, max_users, max_bandwidth, created_at FROM users WHERE id = ?'),
 
   createProxy: db.prepare('INSERT INTO proxies (user_id, subdomain, target_url, country, expires_at) VALUES (?, ?, ?, ?, ?)'),
   getProxiesByUser: db.prepare('SELECT * FROM proxies WHERE user_id = ? ORDER BY created_at DESC'),
@@ -150,7 +175,7 @@ const stmts = {
   addCredits: db.prepare('UPDATE users SET credits = credits + ? WHERE id = ?'),
   setAdmin: db.prepare('UPDATE users SET is_admin = ? WHERE id = ?'),
 
-  getAllUsers: db.prepare('SELECT id, username, email, is_admin, credits, created_at FROM users ORDER BY created_at DESC'),
+  getAllUsers: db.prepare('SELECT id, username, email, is_admin, credits, role, parent_id, max_proxies, max_users, max_bandwidth, created_at FROM users ORDER BY created_at DESC'),
   getAllProxies: db.prepare(`
     SELECT p.*, u.username as owner_username
     FROM proxies p LEFT JOIN users u ON p.user_id = u.id
@@ -209,6 +234,45 @@ const stmts = {
       (SELECT COALESCE(SUM(requests_count), 0) FROM proxies) as total_requests
   `),
   subdomainExists: db.prepare('SELECT 1 FROM proxies WHERE subdomain = ?'),
+
+  // IP lock
+  setIpLock: db.prepare('UPDATE proxies SET ip_lock = ? WHERE id = ?'),
+
+  // Stream tokens
+  createStreamToken: db.prepare('INSERT INTO stream_tokens (token, proxy_id, expires_at) VALUES (?, ?, ?)'),
+  getStreamToken: db.prepare('SELECT st.*, p.subdomain, p.target_url, p.stream_proxy, p.is_active, p.bandwidth_limit, p.bandwidth_used, p.proxy_domain, p.country, p.expires_at as proxy_expires_at, p.ip_lock FROM stream_tokens st JOIN proxies p ON st.proxy_id = p.id WHERE st.token = ?'),
+  getTokensByProxy: db.prepare('SELECT id, token, proxy_id, expires_at, created_at FROM stream_tokens WHERE proxy_id = ? ORDER BY created_at DESC'),
+  deleteStreamToken: db.prepare('DELETE FROM stream_tokens WHERE id = ? AND proxy_id = ?'),
+  deleteExpiredTokens: db.prepare('DELETE FROM stream_tokens WHERE expires_at < ?'),
+
+  // Reseller
+  setParentId: db.prepare('UPDATE users SET parent_id = ? WHERE id = ?'),
+  updateUserRole: db.prepare('UPDATE users SET role = ?, is_admin = CASE WHEN ? = \'admin\' THEN 1 ELSE 0 END WHERE id = ?'),
+  updateResellerLimits: db.prepare('UPDATE users SET max_proxies = ?, max_users = ?, max_bandwidth = ? WHERE id = ?'),
+  getUsersByParent: db.prepare('SELECT id, username, email, is_admin, credits, role, parent_id, created_at FROM users WHERE parent_id = ? ORDER BY created_at DESC'),
+  countUsersByParent: db.prepare('SELECT COUNT(*) as count FROM users WHERE parent_id = ?'),
+  getProxiesByParent: db.prepare(`
+    SELECT p.*, u.username as owner_username
+    FROM proxies p JOIN users u ON p.user_id = u.id
+    WHERE u.parent_id = ?
+    ORDER BY p.created_at DESC
+  `),
+  countProxiesByParent: db.prepare(`
+    SELECT COUNT(*) as count FROM proxies p JOIN users u ON p.user_id = u.id WHERE u.parent_id = ?
+  `),
+  getStreamRequestsByParent: db.prepare(`
+    SELECT p.*, u.username as owner_username
+    FROM proxies p JOIN users u ON p.user_id = u.id
+    WHERE u.parent_id = ? AND p.stream_proxy >= 1
+    ORDER BY p.stream_proxy ASC, p.created_at DESC
+  `),
+  getResellerStats: db.prepare(`
+    SELECT
+      (SELECT COUNT(*) FROM users WHERE parent_id = ?) as total_users,
+      (SELECT COUNT(*) FROM proxies WHERE user_id IN (SELECT id FROM users WHERE parent_id = ?)) as total_proxies,
+      (SELECT COALESCE(SUM(requests_count), 0) FROM proxies WHERE user_id IN (SELECT id FROM users WHERE parent_id = ?)) as total_requests,
+      (SELECT COALESCE(SUM(bandwidth_used), 0) FROM proxies WHERE user_id IN (SELECT id FROM users WHERE parent_id = ?)) as total_bandwidth
+  `),
 };
 
 module.exports = {
@@ -283,4 +347,25 @@ module.exports = {
   getUserStats(userId) { return stmts.getUserStats.get(userId); },
   getGlobalStats() { return stmts.getGlobalStats.get(); },
   subdomainExists(subdomain) { return !!stmts.subdomainExists.get(subdomain); },
+
+  // IP lock
+  setIpLock(id, ip) { return stmts.setIpLock.run(ip, id); },
+
+  // Stream tokens
+  createStreamToken(token, proxyId, expiresAt) { return stmts.createStreamToken.run(token, proxyId, expiresAt); },
+  getStreamToken(token) { return stmts.getStreamToken.get(token); },
+  getTokensByProxy(proxyId) { return stmts.getTokensByProxy.all(proxyId); },
+  deleteStreamToken(id, proxyId) { return stmts.deleteStreamToken.run(id, proxyId); },
+  deleteExpiredTokens() { return stmts.deleteExpiredTokens.run(Math.floor(Date.now() / 1000)); },
+
+  // Reseller
+  setParentId(userId, parentId) { return stmts.setParentId.run(parentId, userId); },
+  updateUserRole(id, role) { return stmts.updateUserRole.run(role, role, id); },
+  updateResellerLimits(id, maxProxies, maxUsers, maxBandwidth) { return stmts.updateResellerLimits.run(maxProxies, maxUsers, maxBandwidth, id); },
+  getUsersByParent(parentId) { return stmts.getUsersByParent.all(parentId); },
+  countUsersByParent(parentId) { return stmts.countUsersByParent.get(parentId).count; },
+  getProxiesByParent(parentId) { return stmts.getProxiesByParent.all(parentId); },
+  countProxiesByParent(parentId) { return stmts.countProxiesByParent.get(parentId).count; },
+  getStreamRequestsByParent(parentId) { return stmts.getStreamRequestsByParent.all(parentId); },
+  getResellerStats(resellerId) { return stmts.getResellerStats.get(resellerId, resellerId, resellerId, resellerId); },
 };

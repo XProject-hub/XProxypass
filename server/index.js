@@ -1,6 +1,7 @@
 const express = require('express');
 const http = require('http');
 const zlib = require('zlib');
+const jwt = require('jsonwebtoken');
 const httpProxy = require('http-proxy');
 let HttpsProxyAgent;
 try {
@@ -20,6 +21,7 @@ const statsRoutes = require('./routes/stats.routes');
 const adminRoutes = require('./routes/admin.routes');
 const paypalRoutes = require('./routes/paypal.routes');
 const nodeRoutes = require('./routes/node.routes');
+const resellerRoutes = require('./routes/reseller.routes');
 
 const app = express();
 const proxy = httpProxy.createProxyServer({ xfwd: true });
@@ -170,6 +172,8 @@ app.use(
 
 const activeConnections = {};
 const bandwidthPerSecond = {};
+let globalRequestsPerSec = 0;
+const proxyRequestsPerSec = {};
 
 const STREAM_EXTENSIONS = /\.(ts|m3u8|m3u|mpd|mp4|mkv|avi|flv|wmv|mov|webm|mpg|mpeg)(\?|$)/i;
 const STREAM_CONTENT_TYPES = /(video|audio|mpegurl|octet-stream|x-mpegURL|mp2t)/i;
@@ -191,9 +195,9 @@ function checkBandwidthLimit(proxyId, limitMbps) {
 }
 
 setInterval(() => {
-  for (const id in bandwidthPerSecond) {
-    bandwidthPerSecond[id] = 0;
-  }
+  for (const id in bandwidthPerSecond) bandwidthPerSecond[id] = 0;
+  globalRequestsPerSec = 0;
+  for (const id in proxyRequestsPerSec) proxyRequestsPerSec[id] = 0;
 }, 1000);
 
 app.use((req, res, next) => {
@@ -205,6 +209,11 @@ app.use((req, res, next) => {
     if (!record || !record.is_active || (record.expires_at && new Date(record.expires_at) < new Date())) {
       res.writeHead(404, { 'Content-Type': 'text/html' });
       return res.end(NOT_FOUND_PAGE);
+    }
+
+    if (record.ip_lock && record.ip_lock !== req.ip) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Access denied. This proxy is locked to a specific IP.' }));
     }
 
     const DNS_BW_LIMIT_MBPS = 50;
@@ -229,6 +238,9 @@ app.use((req, res, next) => {
     }
 
     db.incrementRequests(record.id);
+    globalRequestsPerSec++;
+    if (!proxyRequestsPerSec[record.id]) proxyRequestsPerSec[record.id] = 0;
+    proxyRequestsPerSec[record.id]++;
 
     if (!activeConnections[record.id]) activeConnections[record.id] = 0;
     activeConnections[record.id]++;
@@ -327,20 +339,47 @@ app.use((req, res, next) => {
       const SKIP_REWRITE_DOMAINS = /\.(png|jpg|jpeg|gif|svg|ico|webp|bmp|css|woff|woff2|ttf|eot)$/i;
       const SKIP_REWRITE_HOSTS = /m3uassets\.com|imgur\.com|googleusercontent\.com|cloudinary\.com|wp\.com|githubusercontent\.com|cdn\./i;
 
+      function rewriteExternalUrl(match) {
+        try {
+          if (SKIP_REWRITE_DOMAINS.test(match)) return match;
+          const u = new URL(match);
+          if (u.host === proxyHost) return match;
+          if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return match;
+          if (SKIP_REWRITE_HOSTS.test(u.hostname)) return match;
+          const port = u.port && u.port !== '80' && u.port !== '443' ? `:${u.port}` : '';
+          return `https://${proxyHostname}${port}${u.pathname}${u.search}${u.hash}`;
+        } catch { return match; }
+      }
+
+      function rewriteM3UContent(str) {
+        if (!str) return str;
+        const lines = str.split('\n');
+        const result = [];
+        for (let i = 0; i < lines.length; i++) {
+          let line = lines[i];
+          if (line.startsWith('#EXTINF') || line.startsWith('#EXTM3U') || line.startsWith('#EXT')) {
+            line = line.replace(/tvg-url="([^"]*)"/g, (m, url) => `tvg-url="${rewriteUrl(url)}"`);
+            line = line.replace(/catchup-source="([^"]*)"/g, (m, url) => `catchup-source="${rewriteUrl(url)}"`);
+            line = line.replace(/url-epg="([^"]*)"/g, (m, url) => `url-epg="${rewriteUrl(url)}"`);
+            result.push(line);
+          } else if (line.match(/^https?:\/\//)) {
+            result.push(line.replace(/https?:\/\/[a-zA-Z0-9.-]+(?::\d+)?(?:\/[^\s]*)?/g, rewriteExternalUrl));
+          } else {
+            result.push(rewriteUrl(line));
+          }
+        }
+        return result.join('\n');
+      }
+
       function rewriteAllExternalUrls(str) {
         if (!str) return str;
         str = rewriteUrl(str);
         if (record.stream_proxy === 2) {
-          str = str.replace(/https?:\/\/[a-zA-Z0-9.-]+(?::\d+)?(?:\/[^\s"'<>)]*)?/g, (match) => {
-            try {
-              if (SKIP_REWRITE_DOMAINS.test(match)) return match;
-              const u = new URL(match);
-              if (u.host === proxyHost) return match;
-              if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return match;
-              if (SKIP_REWRITE_HOSTS.test(u.hostname)) return match;
-              return match.replace(`${u.protocol}//${u.host}`, `https://${proxyHost}`);
-            } catch { return match; }
-          });
+          const isM3UContent = str.trimStart().startsWith('#EXTM3U') || str.trimStart().startsWith('#EXTINF');
+          if (isM3UContent) {
+            return rewriteM3UContent(str);
+          }
+          str = str.replace(/https?:\/\/[a-zA-Z0-9.-]+(?::\d+)?(?:\/[^\s"'<>)]*)?/g, rewriteExternalUrl);
         }
         return str;
       }
@@ -373,8 +412,8 @@ app.use((req, res, next) => {
       delete newHeaders['last-modified'];
 
       const reqPath = (req.url || '').toLowerCase();
-      const isM3URequest = reqPath.includes('get.php') || reqPath.includes('.m3u') || reqPath.includes('player_api') ||
-        reqPath.includes('xmltv') || reqPath.includes('epg');
+      const isM3URequest = reqPath.includes('get.php') || reqPath.includes('.m3u') || reqPath.includes('.m3u8') ||
+        reqPath.includes('player_api') || reqPath.includes('xmltv') || reqPath.includes('epg');
 
       const isRewritable = contentType.includes('text') || contentType.includes('json') ||
         contentType.includes('mpegurl') || contentType.includes('x-mpegURL') ||
@@ -459,6 +498,119 @@ app.use((req, res, next) => {
   next();
 });
 
+// Token-based stream access: /stream/:subdomain?token=xyz
+app.use('/stream/:proxySubdomain', (req, res) => {
+  try {
+    const { token } = req.query;
+    if (!token) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Token required' }));
+    }
+
+    const tokenRecord = db.getStreamToken(token);
+    if (!tokenRecord || tokenRecord.expires_at < Math.floor(Date.now() / 1000)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Token expired or invalid' }));
+    }
+
+    if (!tokenRecord.is_active || tokenRecord.stream_proxy !== 2) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Stream not found or not active' }));
+    }
+
+    if (tokenRecord.proxy_expires_at && new Date(tokenRecord.proxy_expires_at) < new Date()) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Proxy expired' }));
+    }
+
+    if (tokenRecord.ip_lock && tokenRecord.ip_lock !== req.ip) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Access denied. This proxy is locked to a specific IP.' }));
+    }
+
+    const record = {
+      id: tokenRecord.proxy_id,
+      subdomain: tokenRecord.subdomain,
+      target_url: tokenRecord.target_url,
+      stream_proxy: tokenRecord.stream_proxy,
+      bandwidth_limit: tokenRecord.bandwidth_limit,
+      bandwidth_used: tokenRecord.bandwidth_used,
+      proxy_domain: tokenRecord.proxy_domain,
+      country: tokenRecord.country,
+      is_active: tokenRecord.is_active,
+    };
+
+    if (record.bandwidth_limit > 0 && !checkBandwidthLimit(record.id, record.bandwidth_limit)) {
+      res.writeHead(429, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Bandwidth limit exceeded.' }));
+    }
+
+    db.incrementRequests(record.id);
+    globalRequestsPerSec++;
+    if (!proxyRequestsPerSec[record.id]) proxyRequestsPerSec[record.id] = 0;
+    proxyRequestsPerSec[record.id]++;
+
+    if (!activeConnections[record.id]) activeConnections[record.id] = 0;
+    activeConnections[record.id]++;
+
+    const { agent, serverId } = getProxyAgent(record.country);
+    if (serverId === 'full') {
+      activeConnections[record.id]--;
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'No servers available.' }));
+    }
+
+    addServerConnection(serverId);
+    res.on('close', () => {
+      if (activeConnections[record.id] > 0) activeConnections[record.id]--;
+      removeServerConnection(serverId);
+    });
+
+    const proxyHost = `${record.subdomain}.${record.proxy_domain || config.domain}`;
+    const streamPath = req.url.replace(/[?&]token=[^&]*/g, '').replace(/\?$/, '') || '/';
+    const targetUrl = record.target_url.replace(/\/$/, '') + streamPath;
+
+    const client = targetUrl.startsWith('https') ? require('https') : require('http');
+    const proxyReqOpts = { timeout: 30000 };
+    if (agent) proxyReqOpts.agent = agent;
+
+    const proxyReq = client.get(targetUrl, proxyReqOpts, (proxyRes) => {
+      if ([301, 302, 307, 308].includes(proxyRes.statusCode) && proxyRes.headers.location) {
+        proxyRes.resume();
+        const cl2 = proxyRes.headers.location.startsWith('https') ? require('https') : require('http');
+        cl2.get(proxyRes.headers.location, { timeout: 30000 }, (finalRes) => {
+          const hdrs = { ...finalRes.headers };
+          delete hdrs['content-security-policy'];
+          hdrs['cache-control'] = 'no-store, no-cache';
+          res.writeHead(finalRes.statusCode, hdrs);
+          let pendingBytes = 0;
+          const flush = setInterval(() => { if (pendingBytes > 0) { try { db.addBandwidth(pendingBytes, record.id); } catch {} pendingBytes = 0; } }, 5000);
+          finalRes.on('data', chunk => { res.write(chunk); pendingBytes += chunk.length; if (!bandwidthPerSecond[record.id]) bandwidthPerSecond[record.id] = 0; bandwidthPerSecond[record.id] += chunk.length; });
+          finalRes.on('end', () => { clearInterval(flush); res.end(); if (pendingBytes > 0) try { db.addBandwidth(pendingBytes, record.id); } catch {} });
+          res.on('close', () => { clearInterval(flush); finalRes.destroy(); if (pendingBytes > 0) try { db.addBandwidth(pendingBytes, record.id); } catch {} });
+        }).on('error', () => { res.writeHead(502); res.end('Stream unavailable'); });
+        return;
+      }
+      const hdrs = { ...proxyRes.headers };
+      delete hdrs['content-security-policy'];
+      hdrs['cache-control'] = 'no-store, no-cache';
+      res.writeHead(proxyRes.statusCode, hdrs);
+      let pendingBytes = 0;
+      const flush = setInterval(() => { if (pendingBytes > 0) { try { db.addBandwidth(pendingBytes, record.id); } catch {} pendingBytes = 0; } }, 5000);
+      proxyRes.on('data', chunk => { res.write(chunk); pendingBytes += chunk.length; if (!bandwidthPerSecond[record.id]) bandwidthPerSecond[record.id] = 0; bandwidthPerSecond[record.id] += chunk.length; });
+      proxyRes.on('end', () => { clearInterval(flush); res.end(); if (pendingBytes > 0) try { db.addBandwidth(pendingBytes, record.id); } catch {} });
+      res.on('close', () => { clearInterval(flush); proxyRes.destroy(); if (pendingBytes > 0) try { db.addBandwidth(pendingBytes, record.id); } catch {} });
+    });
+    proxyReq.on('error', () => { res.writeHead(502); res.end('Stream unavailable'); });
+  } catch (err) {
+    console.error('[StreamToken] Error:', err);
+    res.writeHead(500); res.end('Internal error');
+  }
+});
+
+// Cleanup expired stream tokens every 5 minutes
+setInterval(() => { try { db.deleteExpiredTokens(); } catch {} }, 5 * 60 * 1000);
+
 app.get('/api/connections/:id', (req, res) => {
   res.json({
     connections: activeConnections[req.params.id] || 0,
@@ -472,6 +624,7 @@ app.use('/api/stats', statsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/paypal', paypalRoutes);
 app.use('/api/node', nodeRoutes);
+app.use('/api/reseller', resellerRoutes);
 
 app.get('/api/node/agent-script', (req, res) => {
   const secret = req.headers['x-node-secret'];
@@ -492,6 +645,16 @@ app.get('/api/server-connections', (req, res) => {
   res.json({ servers: serverConnections, proxies: activeConnections });
 });
 
+app.get('/api/live-stats', (req, res) => {
+  const totalActive = Object.values(activeConnections).reduce((s, v) => s + v, 0);
+  const totalBW = Object.values(bandwidthPerSecond).reduce((s, v) => s + v, 0);
+  res.json({
+    active_users: totalActive,
+    bandwidth_mbps: (totalBW / 125000).toFixed(2),
+    requests_per_sec: globalRequestsPerSec,
+  });
+});
+
 app.get('/api/proxy-pool/stats', (req, res) => {
   res.json({ total_proxies: 0, verified_proxies: 0, total_countries: 0, message: 'Using own servers only' });
 });
@@ -508,7 +671,65 @@ app.get('/{*splat}', (req, res) => {
 
 const server = http.createServer(app);
 
+// WebSocket dashboard with socket.io
+const { Server: SocketServer } = require('socket.io');
+const io = new SocketServer(server, {
+  path: '/ws',
+  cors: { origin: '*' },
+  transports: ['websocket', 'polling'],
+});
+
+function parseCookies(cookieStr) {
+  const cookies = {};
+  if (!cookieStr) return cookies;
+  cookieStr.split(';').forEach(c => {
+    const [k, ...v] = c.trim().split('=');
+    if (k) cookies[k] = v.join('=');
+  });
+  return cookies;
+}
+
+io.use((socket, next) => {
+  try {
+    const cookies = parseCookies(socket.handshake.headers.cookie);
+    const token = cookies.token;
+    if (!token) return next(new Error('Auth required'));
+    const decoded = jwt.verify(token, config.jwtSecret);
+    const user = db.getUserById(decoded.id);
+    if (!user) return next(new Error('User not found'));
+    if (user.role !== 'admin' && user.role !== 'reseller' && !user.is_admin) {
+      return next(new Error('Unauthorized'));
+    }
+    socket.user = user;
+    next();
+  } catch {
+    next(new Error('Auth failed'));
+  }
+});
+
+io.on('connection', (socket) => {
+  socket.join('dashboard');
+});
+
+setInterval(() => {
+  const totalActiveUsers = Object.values(activeConnections).reduce((s, v) => s + v, 0);
+  const totalBandwidthBytes = Object.values(bandwidthPerSecond).reduce((s, v) => s + v, 0);
+
+  io.to('dashboard').emit('stats', {
+    active_users: totalActiveUsers,
+    bandwidth_mbps: (totalBandwidthBytes / 125000).toFixed(2),
+    requests_per_sec: globalRequestsPerSec,
+    server_connections: serverConnections,
+    proxy_connections: activeConnections,
+    proxy_bandwidth: Object.fromEntries(
+      Object.entries(bandwidthPerSecond).map(([k, v]) => [k, (v / 125000).toFixed(2)])
+    ),
+  });
+}, 2000);
+
 server.on('upgrade', (req, socket, head) => {
+  if (req.url && req.url.startsWith('/ws')) return;
+
   const host = (req.headers.host || '').split(':')[0];
   const result = getSubdomain(host);
 
