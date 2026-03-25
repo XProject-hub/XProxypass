@@ -375,18 +375,30 @@ router.post('/:id/generate-token', (req, res) => {
 
     const crypto = require('crypto');
     const durationHours = parseInt(req.body.duration_hours) || 24;
+    const { username, password } = req.body;
     const token = crypto.randomBytes(24).toString('hex');
     const expiresAt = Math.floor(Date.now() / 1000) + (durationHours * 3600);
 
-    db.createStreamToken(token, proxy.id, expiresAt);
+    let encryptedCreds = null;
+    if (username && password) {
+      const config = require('../config');
+      const key = crypto.createHash('sha256').update(config.jwtSecret).digest();
+      const iv = crypto.randomBytes(16);
+      const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+      let encrypted = cipher.update(JSON.stringify({ username, password }), 'utf8', 'hex');
+      encrypted += cipher.final('hex');
+      encryptedCreds = iv.toString('hex') + ':' + encrypted;
+    }
+
+    db.createStreamToken(token, proxy.id, expiresAt, encryptedCreds);
 
     const config = require('../config');
     const domain = proxy.proxy_domain || config.domain;
-    const streamUrl = `https://${domain}/stream/${proxy.subdomain}?token=${token}`;
+    const streamUrl = `https://${domain}/stream/${token}`;
 
-    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Stream', 'TokenCreated', `${proxy.subdomain} (${durationHours}h)`);
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Stream', 'TokenCreated', `${proxy.subdomain} (${durationHours}h${username ? ', with credentials' : ''})`);
 
-    res.json({ token, url: streamUrl, expires_at: expiresAt });
+    res.json({ token, url: streamUrl, expires_at: expiresAt, has_credentials: !!encryptedCreds });
   } catch (err) {
     console.error('Generate token error:', err);
     res.status(500).json({ error: 'Internal server error' });

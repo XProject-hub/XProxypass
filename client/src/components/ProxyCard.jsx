@@ -15,6 +15,8 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, 
   const [showTokens, setShowTokens] = useState(false);
   const [tokens, setTokens] = useState([]);
   const [tokenHours, setTokenHours] = useState(24);
+  const [tokenUser, setTokenUser] = useState('');
+  const [tokenPass, setTokenPass] = useState('');
   const [generatingToken, setGeneratingToken] = useState(false);
   const [ipLocking, setIpLocking] = useState(false);
 
@@ -83,17 +85,23 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, 
   };
 
   const generateToken = async () => {
+    if (!tokenUser || !tokenPass) {
+      alert('Enter IPTV username and password to generate a tokenized URL.');
+      return;
+    }
     setGeneratingToken(true);
     try {
       const res = await fetch(`/api/proxies/${proxy.id}/generate-token`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ duration_hours: tokenHours }),
+        body: JSON.stringify({ duration_hours: tokenHours, username: tokenUser, password: tokenPass }),
       });
       if (res.ok) {
         const data = await res.json();
         loadTokens();
         try { navigator.clipboard.writeText(data.url); } catch {}
-        alert(`Token URL copied!\n\n${data.url}\n\nExpires in ${tokenHours} hours.`);
+        alert(`Tokenized URL copied!\n\n${data.url}\n\nExpires in ${tokenHours} hours.\nCredentials are encrypted - end user cannot see username/password.`);
+        setTokenUser('');
+        setTokenPass('');
       }
     } catch {} finally { setGeneratingToken(false); }
   };
@@ -300,11 +308,17 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, 
       {/* Token Management Panel */}
       {showTokens && proxy.stream_proxy === 2 && (
         <div className="mt-3 pt-3 border-t border-white/[0.04]">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-slate-300">Stream Tokens</span>
+          <div className="mb-3">
+            <span className="text-xs font-medium text-slate-300 mb-2 block">Generate Tokenized Stream URL</span>
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <input value={tokenUser} onChange={e => setTokenUser(e.target.value)} placeholder="IPTV Username"
+                className="bg-white/[0.03] border border-white/[0.06] rounded px-2 py-1.5 text-[11px] text-slate-200 placeholder-slate-600" />
+              <input value={tokenPass} onChange={e => setTokenPass(e.target.value)} placeholder="IPTV Password" type="password"
+                className="bg-white/[0.03] border border-white/[0.06] rounded px-2 py-1.5 text-[11px] text-slate-200 placeholder-slate-600" />
+            </div>
             <div className="flex items-center gap-2">
               <select value={tokenHours} onChange={e => setTokenHours(parseInt(e.target.value))}
-                className="bg-white/[0.03] border border-white/[0.06] rounded px-2 py-1 text-[10px] text-slate-300" style={{ background: 'rgba(255,255,255,0.02)' }}>
+                className="bg-white/[0.03] border border-white/[0.06] rounded px-2 py-1.5 text-[10px] text-slate-300 flex-1" style={{ background: 'rgba(255,255,255,0.02)' }}>
                 <option value="1" style={{ background: '#0d0d14' }}>1 hour</option>
                 <option value="6" style={{ background: '#0d0d14' }}>6 hours</option>
                 <option value="24" style={{ background: '#0d0d14' }}>24 hours</option>
@@ -313,10 +327,11 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, 
                 <option value="720" style={{ background: '#0d0d14' }}>30 days</option>
               </select>
               <button onClick={generateToken} disabled={generatingToken}
-                className="btn-primary text-[10px] flex items-center gap-1" style={{ padding: '0.3rem 0.6rem' }}>
+                className="btn-primary text-[10px] flex items-center gap-1" style={{ padding: '0.35rem 0.7rem' }}>
                 {generatingToken ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Key className="w-3 h-3" /> Generate</>}
               </button>
             </div>
+            <p className="text-[9px] text-slate-600 mt-1.5">Credentials are encrypted. End-user gets one URL - no username/password visible.</p>
           </div>
           {tokens.length > 0 && (
             <div className="space-y-1.5 max-h-32 overflow-y-auto">

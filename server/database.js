@@ -118,6 +118,9 @@ try { db.exec('ALTER TABLE proxy_servers ADD COLUMN ssh_pass TEXT'); } catch {}
 // Server type (dns, stream, enterprise, all)
 try { db.exec("ALTER TABLE proxy_servers ADD COLUMN server_type TEXT DEFAULT 'all'"); } catch {}
 
+// Token credentials (encrypted)
+try { db.exec('ALTER TABLE stream_tokens ADD COLUMN credentials TEXT DEFAULT NULL'); } catch {}
+
 // Reseller system
 try { db.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'"); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN parent_id INTEGER DEFAULT NULL'); } catch {}
@@ -335,7 +338,7 @@ const stmts = {
   setIpLock: db.prepare('UPDATE proxies SET ip_lock = ? WHERE id = ?'),
 
   // Stream tokens
-  createStreamToken: db.prepare('INSERT INTO stream_tokens (token, proxy_id, expires_at) VALUES (?, ?, ?)'),
+  createStreamToken: db.prepare('INSERT INTO stream_tokens (token, proxy_id, expires_at, credentials) VALUES (?, ?, ?, ?)'),
   getStreamToken: db.prepare('SELECT st.*, p.subdomain, p.target_url, p.stream_proxy, p.is_active, p.bandwidth_limit, p.bandwidth_used, p.proxy_domain, p.country, p.expires_at as proxy_expires_at, p.ip_lock, p.speed_limit_mbps FROM stream_tokens st JOIN proxies p ON st.proxy_id = p.id WHERE st.token = ?'),
   getTokensByProxy: db.prepare('SELECT id, token, proxy_id, expires_at, created_at FROM stream_tokens WHERE proxy_id = ? ORDER BY created_at DESC'),
   deleteStreamToken: db.prepare('DELETE FROM stream_tokens WHERE id = ? AND proxy_id = ?'),
@@ -487,7 +490,7 @@ module.exports = {
   setIpLock(id, ip) { return stmts.setIpLock.run(ip, id); },
 
   // Stream tokens
-  createStreamToken(token, proxyId, expiresAt) { return stmts.createStreamToken.run(token, proxyId, expiresAt); },
+  createStreamToken(token, proxyId, expiresAt, credentials) { return stmts.createStreamToken.run(token, proxyId, expiresAt, credentials || null); },
   getStreamToken(token) { return stmts.getStreamToken.get(token); },
   getTokensByProxy(proxyId) { return stmts.getTokensByProxy.all(proxyId); },
   deleteStreamToken(id, proxyId) { return stmts.deleteStreamToken.run(id, proxyId); },
