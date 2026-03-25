@@ -51,7 +51,7 @@ router.post('/validate-proxy', (req, res) => {
 
 router.post('/report-stats', (req, res) => {
   try {
-    const { connections, bandwidth, bandwidth_live } = req.body;
+    const { connections, bandwidth, bandwidth_live, requests_per_sec } = req.body;
     const nodeId = req.headers['x-node-id'];
 
     if (bandwidth) {
@@ -78,6 +78,9 @@ router.post('/report-stats', (req, res) => {
       if (connections) {
         const totalConns = Object.values(connections).reduce((s, v) => s + v, 0);
         nodeStats[`node_${nodeId}_conns`] = totalConns;
+      }
+      if (requests_per_sec !== undefined) {
+        nodeStats[`node_${nodeId}_rps`] = requests_per_sec;
       }
     }
 

@@ -836,10 +836,11 @@ app.get('/api/live-stats', (req, res) => {
   let totalActive = Object.values(activeConnections).reduce((s, v) => s + v, 0);
   const bwSource = Object.values(lastBandwidthSnapshot).some(v => v > 0) ? lastBandwidthSnapshot : bandwidthPerSecond;
   let totalBW = Object.values(bwSource).reduce((s, v) => s + v, 0);
-  const reqsValue = lastGlobalReqsSnapshot || globalRequestsPerSec;
+  let reqsValue = lastGlobalReqsSnapshot || globalRequestsPerSec;
   for (const [key, val] of Object.entries(ns)) {
     if (key.startsWith('conn_')) totalActive += val;
     if (key.startsWith('bw_')) totalBW += val;
+    if (key.endsWith('_rps')) reqsValue += val;
   }
   res.json({
     active_users: totalActive,
@@ -915,6 +916,7 @@ setInterval(() => {
 
   const mergedConns = { ...activeConnections };
   const mergedBw = { ...bwSource };
+  let nodeReqs = 0;
   for (const [key, val] of Object.entries(ns)) {
     if (key.startsWith('conn_')) {
       const pid = key.slice(5);
@@ -926,9 +928,10 @@ setInterval(() => {
       mergedBw[pid] = (mergedBw[pid] || 0) + val;
       totalBandwidthBytes += val;
     }
+    if (key.endsWith('_rps')) nodeReqs += val;
   }
 
-  const reqsValue = lastGlobalReqsSnapshot || globalRequestsPerSec;
+  const reqsValue = (lastGlobalReqsSnapshot || globalRequestsPerSec) + nodeReqs;
 
   io.to('dashboard').emit('stats', {
     active_users: totalActiveUsers,

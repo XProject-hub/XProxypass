@@ -36,6 +36,8 @@ const CACHE_TTL = 60000;
 const activeConnections = {};
 const bandwidthPerSecond = {};
 const bandwidthTotal = {};
+let requestsPerSecond = 0;
+let lastRequestsSnapshot = 0;
 
 proxy.on('error', (err, req, res) => {
   if (res.writeHead) {
@@ -125,6 +127,8 @@ function checkBandwidthLimit(proxyId, limitMbps) {
 
 setInterval(() => {
   for (const id in bandwidthPerSecond) bandwidthPerSecond[id] = 0;
+  lastRequestsSnapshot = requestsPerSecond;
+  requestsPerSecond = 0;
 }, 1000);
 
 setInterval(async () => {
@@ -133,6 +137,7 @@ setInterval(async () => {
       connections: activeConnections,
       bandwidth: bandwidthTotal,
       bandwidth_live: { ...bandwidthPerSecond },
+      requests_per_sec: lastRequestsSnapshot || requestsPerSecond,
     });
     for (const id in bandwidthTotal) bandwidthTotal[id] = 0;
   } catch {}
@@ -170,6 +175,7 @@ function handleTokenStream(req, res, tokenData) {
 
   if (!activeConnections[proxyId]) activeConnections[proxyId] = 0;
   activeConnections[proxyId]++;
+  requestsPerSecond++;
   res.on('close', () => { if (activeConnections[proxyId] > 0) activeConnections[proxyId]--; });
 
   const record = { id: proxyId };
@@ -360,6 +366,7 @@ const server = http.createServer(async (req, res) => {
 
   if (!activeConnections[record.id]) activeConnections[record.id] = 0;
   activeConnections[record.id]++;
+  requestsPerSecond++;
   res.on('close', () => { if (activeConnections[record.id] > 0) activeConnections[record.id]--; });
 
   const proxyHost = `${subdomain}.${record.proxy_domain || domain}`;
