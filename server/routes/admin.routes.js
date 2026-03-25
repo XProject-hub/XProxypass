@@ -106,6 +106,24 @@ router.post('/users/:id/reseller-limits', (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
+router.patch('/users/:id/password', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+    if (!password || password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+    const user = db.getUserById(id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const hash = bcrypt.hashSync(password, 12);
+    db.updateUserPassword(id, hash);
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'User', 'PasswordChange', `Password changed for ${user.username}`);
+
+    res.json({ message: `Password updated for ${user.username}` });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
 router.delete('/users/:id', (req, res) => {
   try {
     const { id } = req.params;
@@ -496,6 +514,41 @@ router.post('/servers/:id/restart', async (req, res) => {
     res.json({ message: 'Squid restarted', output });
   } catch (err) {
     res.status(500).json({ error: `Restart failed: ${err.message}` });
+  }
+});
+
+router.post('/servers/:id/secure-squid', async (req, res) => {
+  try {
+    const server = db.getServerById(req.params.id);
+    if (!server) return res.status(404).json({ error: 'Server not found' });
+    const config = require('../config');
+    const masterDomain = config.domain;
+    const script = `
+MASTER_IP=$(dig +short "${masterDomain}" A 2>/dev/null | head -1)
+if [ -z "$MASTER_IP" ]; then MASTER_IP=$(getent hosts "${masterDomain}" 2>/dev/null | awk '{print $1}' | head -1); fi
+if [ -z "$MASTER_IP" ]; then MASTER_IP=$(echo $SSH_CLIENT | awk '{print $1}'); fi
+cat > /etc/squid/squid.conf << SQUIDCONF
+http_port 3128
+acl localnet src 127.0.0.1
+acl localnet src ::1
+acl master_server src $MASTER_IP
+http_access allow localnet
+http_access allow master_server
+http_access deny all
+forwarded_for on
+via off
+cache_mem 64 MB
+cache deny all
+max_filedescriptors 65535
+visible_hostname proxyxpass-node
+SQUIDCONF
+systemctl restart squid
+echo "SQUID_SECURED master=$MASTER_IP"`;
+    const output = await sshCommand(server, script);
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Server', 'SecureSquid', `${server.ip}: Squid ACL restricted`);
+    res.json({ message: 'Squid secured - restricted to master server only', output });
+  } catch (err) {
+    res.status(500).json({ error: `Secure Squid failed: ${err.message}` });
   }
 });
 

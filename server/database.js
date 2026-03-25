@@ -271,6 +271,7 @@ const stmts = {
   deductCredit: db.prepare('UPDATE users SET credits = credits - 1 WHERE id = ? AND credits > 0'),
   addCredits: db.prepare('UPDATE users SET credits = credits + ? WHERE id = ?'),
   setAdmin: db.prepare('UPDATE users SET is_admin = ? WHERE id = ?'),
+  updateUserPassword: db.prepare('UPDATE users SET password_hash = ? WHERE id = ?'),
 
   getAllUsers: db.prepare('SELECT id, username, email, is_admin, credits, role, parent_id, max_proxies, max_users, max_bandwidth, gbps_pool, gbps_allocated, created_at FROM users ORDER BY created_at DESC'),
   getAllProxies: db.prepare(`
@@ -433,6 +434,7 @@ module.exports = {
   deductCredit(userId) { return stmts.deductCredit.run(userId); },
   addCredits(amount, userId) { return stmts.addCredits.run(amount, userId); },
   setAdmin(isAdmin, userId) { return stmts.setAdmin.run(isAdmin, userId); },
+  updateUserPassword(userId, passwordHash) { return stmts.updateUserPassword.run(passwordHash, userId); },
 
   getAllUsers() { return stmts.getAllUsers.all(); },
   getAllProxies() { return stmts.getAllProxies.all(); },

@@ -5,6 +5,17 @@ function generateNodeSetupScript(masterUrl, nodeSecret, nodeId, domain) {
 export DEBIAN_FRONTEND=noninteractive
 export NEEDRESTART_MODE=a
 
+# Resolve master server IP from domain for Squid ACL
+MASTER_DOMAIN=$(echo "${masterUrl}" | sed -E 's|https?://||' | sed 's|/.*||')
+MASTER_IP=$(dig +short "\$MASTER_DOMAIN" A 2>/dev/null | head -1)
+if [ -z "\$MASTER_IP" ]; then
+  MASTER_IP=$(getent hosts "\$MASTER_DOMAIN" 2>/dev/null | awk '{print $1}' | head -1)
+fi
+if [ -z "\$MASTER_IP" ]; then
+  MASTER_IP=$(echo \$SSH_CLIENT | awk '{print $1}')
+fi
+echo "Master IP for Squid ACL: \$MASTER_IP"
+
 # Install Node.js
 if ! command -v node &> /dev/null; then
   curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
@@ -24,10 +35,14 @@ fi
 
 # Install and configure Squid proxy
 apt-get install -y squid 2>/dev/null || apt-get update -y && apt-get install -y squid
-cat > /etc/squid/squid.conf << 'SQUIDCONF'
+cat > /etc/squid/squid.conf << SQUIDCONF
 http_port 3128
-acl all src 0.0.0.0/0
-http_access allow all
+acl localnet src 127.0.0.1
+acl localnet src ::1
+acl master_server src \$MASTER_IP
+http_access allow localnet
+http_access allow master_server
+http_access deny all
 forwarded_for on
 via off
 cache_mem 64 MB
@@ -330,15 +345,21 @@ function setupServer(ip, port, username, password, options = {}) {
   });
 }
 
-function getSquidScript() {
+function getSquidScript(masterIp) {
+  const allowIp = masterIp || '$(echo $SSH_CLIENT | awk \'{print $1}\')';
   return `
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get install -y squid
-cat > /etc/squid/squid.conf << 'SQUIDCONF'
+MASTER_IP="${allowIp}"
+cat > /etc/squid/squid.conf << SQUIDCONF
 http_port 3128
-acl all src 0.0.0.0/0
-http_access allow all
+acl localnet src 127.0.0.1
+acl localnet src ::1
+acl master_server src \$MASTER_IP
+http_access allow localnet
+http_access allow master_server
+http_access deny all
 forwarded_for on
 via off
 cache_mem 64 MB

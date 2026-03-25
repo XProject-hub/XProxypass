@@ -179,6 +179,10 @@ const bandwidthPerSecond = {};
 let globalRequestsPerSec = 0;
 const proxyRequestsPerSec = {};
 
+let lastBandwidthSnapshot = {};
+let lastGlobalReqsSnapshot = 0;
+let lastProxyReqsSnapshot = {};
+
 const STREAM_EXTENSIONS = /\.(ts|m3u8|m3u|mpd|mp4|mkv|avi|flv|wmv|mov|webm|mpg|mpeg)(\?|$)/i;
 const STREAM_CONTENT_TYPES = /(video|audio|mpegurl|octet-stream|x-mpegURL|mp2t)/i;
 
@@ -199,6 +203,9 @@ function checkBandwidthLimit(proxyId, limitMbps) {
 }
 
 setInterval(() => {
+  lastBandwidthSnapshot = { ...bandwidthPerSecond };
+  lastGlobalReqsSnapshot = globalRequestsPerSec;
+  lastProxyReqsSnapshot = { ...proxyRequestsPerSec };
   for (const id in bandwidthPerSecond) bandwidthPerSecond[id] = 0;
   globalRequestsPerSec = 0;
   for (const id in proxyRequestsPerSec) proxyRequestsPerSec[id] = 0;
@@ -273,7 +280,7 @@ app.use((req, res, next) => {
     if (agent) proxyOptions.agent = agent;
 
     proxy.once('proxyRes', (proxyRes, _req, _res) => {
-      if (record.stream_proxy === 2 && [301, 302, 307, 308].includes(proxyRes.statusCode) && proxyRes.headers.location) {
+      if ([301, 302, 307, 308].includes(proxyRes.statusCode) && proxyRes.headers.location) {
         const redirectUrl = proxyRes.headers.location;
         proxyRes.resume();
 
@@ -632,20 +639,44 @@ const streamTokenHandler = (req, res) => {
     const targetUrl = record.target_url.replace(/\/$/, '') + streamPath;
     const tokenBaseUrl = `http://${config.domain}/stream/${tokenStr}`;
 
+    const parsedTarget = new URL(targetUrl);
     const httpClient = targetUrl.startsWith('https') ? require('https') : require('http');
-    const proxyReqOpts = { timeout: 30000 };
+    const proxyReqOpts = {
+      hostname: parsedTarget.hostname,
+      port: parsedTarget.port || (targetUrl.startsWith('https') ? 443 : 80),
+      path: parsedTarget.pathname + parsedTarget.search,
+      timeout: 30000,
+      headers: {},
+    };
     if (agent) proxyReqOpts.agent = agent;
 
-    const proxyReq = httpClient.get(targetUrl, proxyReqOpts, (proxyRes) => {
+    const fwdHeaders = ['range', 'accept', 'user-agent', 'accept-encoding',
+      'accept-language', 'if-range', 'if-none-match', 'if-modified-since', 'connection'];
+    for (const h of fwdHeaders) {
+      if (req.headers[h]) proxyReqOpts.headers[h] = req.headers[h];
+    }
+    proxyReqOpts.headers['host'] = parsedTarget.host;
+
+    const proxyReq = httpClient.get(proxyReqOpts, (proxyRes) => {
       if ([301, 302, 307, 308].includes(proxyRes.statusCode) && proxyRes.headers.location) {
         proxyRes.resume();
-        const rdOpts = { timeout: 30000 };
+        const rdUrl = new URL(proxyRes.headers.location);
+        const rdOpts = {
+          hostname: rdUrl.hostname,
+          port: rdUrl.port || (proxyRes.headers.location.startsWith('https') ? 443 : 80),
+          path: rdUrl.pathname + rdUrl.search,
+          timeout: 30000,
+          headers: { ...proxyReqOpts.headers, host: rdUrl.host },
+        };
         if (agent) rdOpts.agent = agent;
         const cl2 = proxyRes.headers.location.startsWith('https') ? require('https') : require('http');
-        cl2.get(proxyRes.headers.location, rdOpts, (finalRes) => {
+        cl2.get(rdOpts, (finalRes) => {
           const hdrs = { ...finalRes.headers };
           delete hdrs['content-security-policy'];
           hdrs['cache-control'] = 'no-store, no-cache';
+          if (finalRes.statusCode === 206) {
+            hdrs['accept-ranges'] = 'bytes';
+          }
           res.writeHead(finalRes.statusCode, hdrs);
           streamTokenPipe(finalRes, res, record);
         }).on('error', () => { res.writeHead(502); res.end('Stream unavailable'); });
@@ -721,6 +752,9 @@ const streamTokenHandler = (req, res) => {
         const hdrs = { ...proxyRes.headers };
         delete hdrs['content-security-policy'];
         hdrs['cache-control'] = 'no-store, no-cache';
+        if (proxyRes.statusCode === 206) {
+          hdrs['accept-ranges'] = 'bytes';
+        }
         res.writeHead(proxyRes.statusCode, hdrs);
         streamTokenPipe(proxyRes, res, record);
       }
@@ -778,20 +812,27 @@ app.get('/api/server-connections', (req, res) => {
   const { getNodeStats } = require('./routes/node.routes');
   const ns = getNodeStats();
   const mergedProxies = { ...activeConnections };
+  const mergedServers = { ...serverConnections };
   for (const [key, val] of Object.entries(ns)) {
     if (key.startsWith('conn_')) {
       const pid = key.slice(5);
       mergedProxies[pid] = (mergedProxies[pid] || 0) + val;
     }
+    if (key.startsWith('node_') && key.endsWith('_conns')) {
+      const nodeId = key.replace('node_', '').replace('_conns', '');
+      mergedServers[nodeId] = (mergedServers[nodeId] || 0) + val;
+    }
   }
-  res.json({ servers: serverConnections, proxies: mergedProxies });
+  res.json({ servers: mergedServers, proxies: mergedProxies });
 });
 
 app.get('/api/live-stats', (req, res) => {
   const { getNodeStats } = require('./routes/node.routes');
   const ns = getNodeStats();
   let totalActive = Object.values(activeConnections).reduce((s, v) => s + v, 0);
-  let totalBW = Object.values(bandwidthPerSecond).reduce((s, v) => s + v, 0);
+  const bwSource = Object.values(lastBandwidthSnapshot).some(v => v > 0) ? lastBandwidthSnapshot : bandwidthPerSecond;
+  let totalBW = Object.values(bwSource).reduce((s, v) => s + v, 0);
+  const reqsValue = lastGlobalReqsSnapshot || globalRequestsPerSec;
   for (const [key, val] of Object.entries(ns)) {
     if (key.startsWith('conn_')) totalActive += val;
     if (key.startsWith('bw_')) totalBW += val;
@@ -799,7 +840,7 @@ app.get('/api/live-stats', (req, res) => {
   res.json({
     active_users: totalActive,
     bandwidth_mbps: (totalBW / 125000).toFixed(2),
-    requests_per_sec: globalRequestsPerSec,
+    requests_per_sec: reqsValue,
   });
 });
 
@@ -863,11 +904,13 @@ setInterval(() => {
   const { getNodeStats } = require('./routes/node.routes');
   const ns = getNodeStats();
 
+  const bwSource = Object.values(lastBandwidthSnapshot).some(v => v > 0) ? lastBandwidthSnapshot : bandwidthPerSecond;
+
   let totalActiveUsers = Object.values(activeConnections).reduce((s, v) => s + v, 0);
-  let totalBandwidthBytes = Object.values(bandwidthPerSecond).reduce((s, v) => s + v, 0);
+  let totalBandwidthBytes = Object.values(bwSource).reduce((s, v) => s + v, 0);
 
   const mergedConns = { ...activeConnections };
-  const mergedBw = { ...bandwidthPerSecond };
+  const mergedBw = { ...bwSource };
   for (const [key, val] of Object.entries(ns)) {
     if (key.startsWith('conn_')) {
       const pid = key.slice(5);
@@ -881,10 +924,12 @@ setInterval(() => {
     }
   }
 
+  const reqsValue = lastGlobalReqsSnapshot || globalRequestsPerSec;
+
   io.to('dashboard').emit('stats', {
     active_users: totalActiveUsers,
     bandwidth_mbps: (totalBandwidthBytes / 125000).toFixed(2),
-    requests_per_sec: globalRequestsPerSec,
+    requests_per_sec: reqsValue,
     server_connections: serverConnections,
     proxy_connections: mergedConns,
     proxy_bandwidth: Object.fromEntries(

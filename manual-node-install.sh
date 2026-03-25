@@ -38,10 +38,26 @@ echo "[3/6] Installing Squid proxy..."
 if ! command -v squid &> /dev/null; then
   apt-get install -y squid 2>/dev/null || { apt-get update -y && apt-get install -y squid; }
 fi
-cat > /etc/squid/squid.conf << 'SQUIDCONF'
+
+# Resolve master server IP for Squid ACL
+MASTER_DOMAIN=$(echo "${MASTER_URL}" | sed -E 's|https?://||' | sed 's|/.*||')
+MASTER_IP=$(dig +short "$MASTER_DOMAIN" A 2>/dev/null | head -1)
+if [ -z "$MASTER_IP" ]; then
+  MASTER_IP=$(getent hosts "$MASTER_DOMAIN" 2>/dev/null | awk '{print $1}' | head -1)
+fi
+if [ -z "$MASTER_IP" ]; then
+  MASTER_IP=$(echo $SSH_CLIENT | awk '{print $1}')
+fi
+echo "  Master IP for Squid ACL: $MASTER_IP"
+
+cat > /etc/squid/squid.conf << SQUIDCONF
 http_port 3128
-acl all src 0.0.0.0/0
-http_access allow all
+acl localnet src 127.0.0.1
+acl localnet src ::1
+acl master_server src $MASTER_IP
+http_access allow localnet
+http_access allow master_server
+http_access deny all
 forwarded_for on
 via off
 cache_mem 64 MB
@@ -51,7 +67,7 @@ visible_hostname proxyxpass-node
 SQUIDCONF
 systemctl enable squid
 systemctl restart squid
-echo "  Squid running on port 3128"
+echo "  Squid running on port 3128 (restricted to master: $MASTER_IP)"
 
 echo "[4/6] Setting up Node Agent..."
 mkdir -p /opt/proxyxpass-node

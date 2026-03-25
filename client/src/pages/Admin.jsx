@@ -4,12 +4,12 @@ import { io } from 'socket.io-client';
 import Navbar from '../components/Navbar';
 import {
   Users, Globe, Activity, Trash2, Shield, ShieldOff, UserPlus,
-  Plus, Loader2, ArrowLeft, CreditCard, ScrollText,
+  Plus, Loader2, ArrowLeft, CreditCard, ScrollText, KeyRound,
   LayoutList, Clock, MapPin, Server, RefreshCw, Wifi, WifiOff, CheckCircle2,
   Play, Square, RotateCcw, Power, Edit3, Zap
 } from 'lucide-react';
 
-import { Radio, Link2, Tag } from 'lucide-react';
+import { Radio, Link2, Tag, ShieldCheck } from 'lucide-react';
 
 const TABS = [
   { id: 'proxies', label: 'Proxies', icon: Globe },
@@ -40,6 +40,8 @@ export default function Admin() {
   const [loading, setLoading] = useState(true);
   const [creditModal, setCreditModal] = useState(null);
   const [creditAmount, setCreditAmount] = useState('');
+  const [passwordModal, setPasswordModal] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
   const [serverModal, setServerModal] = useState(false);
   const [editServerModal, setEditServerModal] = useState(null);
   const [serverForm, setServerForm] = useState({ ip: '', ssh_port: '22', username: 'root', password: '', country: 'US', label: '', max_connections: '100', bandwidth_limit: '1Gbps' });
@@ -181,6 +183,22 @@ export default function Admin() {
       setCreditModal(null);
       setCreditAmount('');
       loadData();
+    }
+  };
+
+  const changePassword = async () => {
+    if (!passwordModal || !newPassword || newPassword.length < 6) return;
+    const res = await fetch(`/api/admin/users/${passwordModal.id}/password`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: newPassword }),
+    });
+    if (res.ok) {
+      showToast(`Password updated for ${passwordModal.username}`, 'success');
+      setPasswordModal(null);
+      setNewPassword('');
+    } else {
+      const data = await res.json();
+      showToast(data.error || 'Failed to change password', 'error');
     }
   };
 
@@ -523,6 +541,9 @@ export default function Admin() {
                           <td className="px-4 py-3 text-slate-500 text-xs">{new Date(u.created_at).toLocaleDateString()}</td>
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-end gap-1">
+                              <button onClick={() => { setPasswordModal(u); setNewPassword(''); }} className="p-1.5 rounded-lg hover:bg-amber-500/10 text-slate-600 hover:text-amber-400 transition-all" title="Change Password">
+                                <KeyRound className="w-3.5 h-3.5" />
+                              </button>
                               <button onClick={() => { setCreditModal(u); setCreditAmount(''); }} className="p-1.5 rounded-lg hover:bg-cyan-500/10 text-slate-600 hover:text-cyan-400 transition-all" title="Add Credits">
                                 <CreditCard className="w-3.5 h-3.5" />
                               </button>
@@ -1038,6 +1059,11 @@ export default function Admin() {
                                 className="p-1.5 rounded-lg hover:bg-blue-500/10 text-slate-600 hover:text-blue-400 transition-all" title="Health Check">
                                 {checkingServer === s.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                               </button>
+                              <button onClick={() => serverCommand(s.id, 'secure-squid', 'Restrict Squid to master server IP only? This will block all external access to Squid.')}
+                                disabled={serverAction === `${s.id}-secure-squid`}
+                                className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-slate-600 hover:text-emerald-400 transition-all" title="Secure Squid (restrict to master IP)">
+                                {serverAction === `${s.id}-secure-squid` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+                              </button>
                               <button onClick={() => deleteServerItem(s.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-slate-600 hover:text-red-400 transition-all" title="Delete">
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -1129,6 +1155,24 @@ export default function Admin() {
               <button onClick={() => setCreditModal(null)} className="btn-secondary flex-1 text-sm" style={{ padding: '0.6rem 1rem' }}>Cancel</button>
               <button onClick={addCredits} className="btn-primary flex-1 text-sm flex items-center justify-center gap-2" style={{ padding: '0.6rem 1rem' }}>
                 <Plus className="w-4 h-4" /> Add
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Password Modal */}
+      {passwordModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={() => setPasswordModal(null)}>
+          <div className="glass rounded-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-slate-100 mb-1">Change Password</h3>
+            <p className="text-sm text-slate-500 mb-5">
+              User: <span className="text-slate-300">{passwordModal.username}</span>
+            </p>
+            <input type="password" minLength="6" className="input-field mb-4" placeholder="New password (min 6 chars)" value={newPassword} onChange={e => setNewPassword(e.target.value)} autoFocus />
+            <div className="flex gap-3">
+              <button onClick={() => setPasswordModal(null)} className="btn-secondary flex-1 text-sm" style={{ padding: '0.6rem 1rem' }}>Cancel</button>
+              <button onClick={changePassword} disabled={newPassword.length < 6} className="btn-primary flex-1 text-sm flex items-center justify-center gap-2" style={{ padding: '0.6rem 1rem' }}>
+                <KeyRound className="w-4 h-4" /> Update
               </button>
             </div>
           </div>
