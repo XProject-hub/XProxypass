@@ -96,6 +96,88 @@ router.post('/report-stats', (req, res) => {
   }
 });
 
+router.post('/validate-token', (req, res) => {
+  try {
+    const { token, remaining_path, client_ip } = req.body;
+    if (!token) return res.status(400).json({ valid: false, error: 'Token required' });
+
+    const tokenRecord = db.getStreamToken(token);
+    if (!tokenRecord || tokenRecord.expires_at < Math.floor(Date.now() / 1000)) {
+      return res.json({ valid: false, error: 'Token expired or invalid' });
+    }
+    if (!tokenRecord.is_active || tokenRecord.stream_proxy !== 2) {
+      return res.json({ valid: false, error: 'Stream not found or not active' });
+    }
+    if (tokenRecord.proxy_expires_at && new Date(tokenRecord.proxy_expires_at) < new Date()) {
+      return res.json({ valid: false, error: 'Proxy expired' });
+    }
+    if (tokenRecord.ip_lock && client_ip && tokenRecord.ip_lock !== client_ip) {
+      return res.json({ valid: false, error: 'Access denied. IP locked.' });
+    }
+
+    let creds = null;
+    if (tokenRecord.credentials) {
+      const crypto = require('crypto');
+      try {
+        const [ivHex, encrypted] = tokenRecord.credentials.split(':');
+        const key = crypto.createHash('sha256').update(config.jwtSecret).digest();
+        const iv = Buffer.from(ivHex, 'hex');
+        const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+        let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+        decrypted += decipher.final('utf8');
+        creds = JSON.parse(decrypted);
+      } catch {}
+    }
+
+    const remaining = String(remaining_path || '');
+    let streamPath = '/' + remaining;
+
+    if (creds && !remaining) {
+      streamPath = `/get.php?username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&type=m3u_plus&output=mpegts`;
+    } else if (creds && remaining) {
+      if (remaining.includes('get.php')) {
+        if (!remaining.includes('username=')) {
+          const sep = remaining.includes('?') ? '&' : '?';
+          streamPath = `/${remaining}${sep}username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}`;
+        }
+      } else if (remaining.includes('player_api')) {
+        if (!remaining.includes('username=')) {
+          const sep = remaining.includes('?') ? '&' : '?';
+          streamPath = `/${remaining}${sep}username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}`;
+        }
+      } else if (!remaining.includes(creds.username)) {
+        const cleanRemaining = remaining.replace(/^(live|movie|series)\//, '$1/');
+        if (cleanRemaining.match(/^(live|movie|series)\//)) {
+          const parts = cleanRemaining.split('/');
+          const prefix = parts[0];
+          const rest = parts.slice(1).join('/');
+          streamPath = `/${prefix}/${creds.username}/${creds.password}/${rest}`;
+        } else {
+          streamPath = `/${creds.username}/${creds.password}/${remaining}`;
+        }
+      }
+    }
+
+    const targetUrl = tokenRecord.target_url.replace(/\/$/, '') + streamPath;
+
+    res.json({
+      valid: true,
+      target_url: targetUrl,
+      proxy_id: tokenRecord.proxy_id,
+      subdomain: tokenRecord.subdomain,
+      proxy_domain: tokenRecord.proxy_domain,
+      speed_limit_mbps: tokenRecord.speed_limit_mbps || 0,
+      bandwidth_limit: tokenRecord.bandwidth_limit || 0,
+      has_credentials: !!creds,
+      creds_username: creds?.username || null,
+      creds_password: creds?.password || null,
+    });
+  } catch (err) {
+    console.error('Node validate-token error:', err);
+    res.status(500).json({ valid: false, error: 'Internal server error' });
+  }
+});
+
 router.post('/increment-requests', (req, res) => {
   try {
     const { proxy_id } = req.body;

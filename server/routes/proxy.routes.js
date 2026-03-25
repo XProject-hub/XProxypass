@@ -363,7 +363,7 @@ router.delete('/:id/ip-lock', (req, res) => {
 
 // ── Stream Tokens ──────────────────────────────────
 
-router.post('/:id/generate-token', (req, res) => {
+router.post('/:id/generate-token', async (req, res) => {
   try {
     const proxy = db.getProxyById(req.params.id);
     if (!proxy || proxy.user_id !== req.user.id) {
@@ -393,7 +393,17 @@ router.post('/:id/generate-token', (req, res) => {
     db.createStreamToken(token, proxy.id, expiresAt, encryptedCreds);
 
     const config = require('../config');
-    const streamUrl = `http://${config.domain}/stream/${token}`;
+    const proxyDomain = proxy.proxy_domain || config.domain;
+
+    let streamHost = config.domain;
+    if (proxy.country && proxy.country !== 'auto' && dnsManager.isConfigured()) {
+      const nodeIP = await dnsManager.getNodeIPForCountry(proxy.country, db);
+      if (nodeIP) {
+        streamHost = `${proxy.subdomain}.${proxyDomain}`;
+      }
+    }
+
+    const streamUrl = `http://${streamHost}/stream/${token}`;
 
     db.addActivityLog(req.user.id, req.user.username, req.ip, 'Stream', 'TokenCreated', `${proxy.subdomain} (${durationHours}h${username ? ', with credentials' : ''})`);
 

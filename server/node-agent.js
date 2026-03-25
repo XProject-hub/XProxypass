@@ -138,6 +138,153 @@ setInterval(async () => {
   } catch {}
 }, 10000);
 
+const tokenCache = {};
+const TOKEN_CACHE_TTL = 30000;
+
+async function validateToken(token, remainingPath, clientIp) {
+  const cacheKey = `${token}:${remainingPath || ''}`;
+  const cached = tokenCache[cacheKey];
+  if (cached && Date.now() - cached.time < TOKEN_CACHE_TTL) return cached.data;
+  try {
+    const result = await masterAPI('/api/node/validate-token', { token, remaining_path: remainingPath, client_ip: clientIp });
+    if (result && result.valid) {
+      tokenCache[cacheKey] = { data: result, time: Date.now() };
+    }
+    return result;
+  } catch (err) {
+    console.error(`[NodeAgent] Token validation error: ${err.message}`);
+    if (cached) return cached.data;
+    return null;
+  }
+}
+
+function handleTokenStream(req, res, tokenData) {
+  const proxyId = tokenData.proxy_id;
+  const targetUrl = tokenData.target_url;
+  const speedLimit = tokenData.speed_limit_mbps || tokenData.bandwidth_limit || 0;
+
+  if (speedLimit > 0 && !checkBandwidthLimit(proxyId, speedLimit)) {
+    res.writeHead(429, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: 'Speed limit reached.' }));
+  }
+
+  if (!activeConnections[proxyId]) activeConnections[proxyId] = 0;
+  activeConnections[proxyId]++;
+  res.on('close', () => { if (activeConnections[proxyId] > 0) activeConnections[proxyId]--; });
+
+  const record = { id: proxyId };
+  const tokenStr = req.url.split('/stream/')[1]?.split('/')[0] || '';
+  const host = req.headers.host || '';
+  const tokenBaseUrl = `http://${host}/stream/${tokenStr}`;
+
+  const parsedTarget = new URL(targetUrl);
+  const httpClient = targetUrl.startsWith('https') ? https : http;
+  const proxyReqOpts = {
+    hostname: parsedTarget.hostname,
+    port: parsedTarget.port || (targetUrl.startsWith('https') ? 443 : 80),
+    path: parsedTarget.pathname + parsedTarget.search,
+    timeout: 30000,
+    headers: {},
+  };
+
+  const fwdHeaders = ['range', 'accept', 'user-agent', 'accept-encoding',
+    'accept-language', 'if-range', 'if-none-match', 'if-modified-since', 'connection'];
+  for (const h of fwdHeaders) {
+    if (req.headers[h]) proxyReqOpts.headers[h] = req.headers[h];
+  }
+  proxyReqOpts.headers['host'] = parsedTarget.host;
+
+  const proxyReq = httpClient.get(proxyReqOpts, (proxyRes) => {
+    if ([301, 302, 307, 308].includes(proxyRes.statusCode) && proxyRes.headers.location) {
+      proxyRes.resume();
+      const rdUrl = proxyRes.headers.location;
+      const cl2 = rdUrl.startsWith('https') ? https : http;
+      cl2.get(rdUrl, { timeout: 30000 }, (finalRes) => {
+        const hdrs = { ...finalRes.headers };
+        delete hdrs['content-security-policy'];
+        hdrs['cache-control'] = 'no-store, no-cache';
+        res.writeHead(finalRes.statusCode, hdrs);
+        streamResponse(finalRes, res, record);
+      }).on('error', () => { res.writeHead(502); res.end('Stream unavailable'); });
+      return;
+    }
+
+    const contentType = proxyRes.headers['content-type'] || '';
+    const fullPath = (parsedTarget.pathname || '').toLowerCase();
+    const isTextResponse = contentType.includes('text') || contentType.includes('json') ||
+      contentType.includes('mpegurl') || contentType.includes('xml') || contentType.includes('javascript') ||
+      (contentType.includes('octet-stream') && (fullPath.includes('get.php') || fullPath.includes('.m3u') || fullPath.includes('player_api')));
+
+    if (isTextResponse && tokenData.has_credentials) {
+      const chunks = [];
+      proxyRes.on('data', c => chunks.push(c));
+      proxyRes.on('end', () => {
+        let raw = Buffer.concat(chunks);
+        const encoding = proxyRes.headers['content-encoding'];
+        if (encoding) {
+          try {
+            if (encoding === 'gzip') raw = zlib.gunzipSync(raw);
+            else if (encoding === 'deflate') raw = zlib.inflateSync(raw);
+            else if (encoding === 'br') raw = zlib.brotliDecompressSync(raw);
+          } catch {}
+        }
+
+        let body = raw.toString('utf8');
+        let targetHost;
+        try { targetHost = new URL(tokenData.target_url || targetUrl).host; } catch { targetHost = ''; }
+
+        body = body.replace(/https?:\/\/[a-zA-Z0-9.-]+(?::\d+)?\/[^\s"'<>)]+/g, (match) => {
+          try {
+            const u = new URL(match);
+            if (u.hostname === 'logo.m3uassets.com' || /\.(png|jpg|jpeg|gif|svg|ico|webp)$/i.test(match)) return match;
+            let cleanPath = u.pathname;
+            if (tokenData.creds_username) {
+              cleanPath = cleanPath.replace(`/${tokenData.creds_username}/${tokenData.creds_password}`, '');
+              cleanPath = cleanPath.replace(`/${tokenData.creds_username}`, '');
+            }
+            if (!cleanPath || cleanPath === '/') cleanPath = '';
+            return tokenBaseUrl + cleanPath + u.search;
+          } catch { return match; }
+        });
+
+        if (body.includes('"url"') && body.includes('"port"')) {
+          try {
+            const json = JSON.parse(body);
+            if (json.server_info) {
+              json.server_info.url = host.split(':')[0];
+              json.server_info.port = req.headers['x-forwarded-port'] || '80';
+            }
+            body = JSON.stringify(json);
+          } catch {}
+        }
+
+        const hdrs = { ...proxyRes.headers };
+        delete hdrs['content-security-policy'];
+        delete hdrs['content-length'];
+        delete hdrs['content-encoding'];
+        hdrs['cache-control'] = 'no-store, no-cache';
+        hdrs['transfer-encoding'] = 'chunked';
+
+        res.writeHead(proxyRes.statusCode, hdrs);
+        res.end(body);
+
+        const bytes = Buffer.byteLength(body);
+        if (!bandwidthPerSecond[proxyId]) bandwidthPerSecond[proxyId] = 0;
+        bandwidthPerSecond[proxyId] += bytes;
+        addBW(proxyId, bytes);
+      });
+    } else {
+      const hdrs = { ...proxyRes.headers };
+      delete hdrs['content-security-policy'];
+      hdrs['cache-control'] = 'no-store, no-cache';
+      if (proxyRes.statusCode === 206) hdrs['accept-ranges'] = 'bytes';
+      res.writeHead(proxyRes.statusCode, hdrs);
+      streamResponse(proxyRes, res, record);
+    }
+  });
+  proxyReq.on('error', () => { res.writeHead(502); res.end('Stream unavailable'); });
+}
+
 const server = http.createServer(async (req, res) => {
   if (req.url === '/health') {
     const squidOk = await checkLocalSquid();
@@ -148,6 +295,20 @@ const server = http.createServer(async (req, res) => {
       squid: squidOk ? 'running' : 'down',
       uptime: process.uptime(),
     }));
+  }
+
+  // Handle token-based streams: /stream/TOKEN or /stream/TOKEN/path
+  const streamMatch = req.url.match(/^\/stream\/([a-f0-9]+)(?:\/(.*))?$/);
+  if (streamMatch) {
+    const token = streamMatch[1];
+    const remainingPath = streamMatch[2] || '';
+    const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || req.socket?.remoteAddress;
+    const tokenData = await validateToken(token, remainingPath, clientIp);
+    if (!tokenData || !tokenData.valid) {
+      res.writeHead(tokenData?.error?.includes('IP') ? 403 : 401, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: tokenData?.error || 'Token invalid' }));
+    }
+    return handleTokenStream(req, res, tokenData);
   }
 
   const result = getSubdomain(req.headers.host?.split(':')[0]);
