@@ -600,10 +600,27 @@ const streamTokenHandler = (req, res) => {
 
     if (creds && !remaining) {
       streamPath = `/get.php?username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&type=m3u_plus&output=mpegts`;
-    } else if (creds && remaining && !remaining.includes(creds.username)) {
-      const pathParts = remaining.split('/');
-      if (pathParts.length >= 1 && !remaining.includes('get.php') && !remaining.includes('player_api')) {
-        streamPath = `/${creds.username}/${creds.password}/${pathParts.join('/')}`;
+    } else if (creds && remaining) {
+      if (remaining.includes('get.php')) {
+        if (!remaining.includes('username=')) {
+          const sep = remaining.includes('?') ? '&' : '?';
+          streamPath = `/${remaining}${sep}username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}`;
+        }
+      } else if (remaining.includes('player_api')) {
+        if (!remaining.includes('username=')) {
+          const sep = remaining.includes('?') ? '&' : '?';
+          streamPath = `/${remaining}${sep}username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}`;
+        }
+      } else if (!remaining.includes(creds.username)) {
+        const cleanRemaining = remaining.replace(/^(live|movie|series)\//, '$1/');
+        if (cleanRemaining.match(/^(live|movie|series)\//)) {
+          const parts = cleanRemaining.split('/');
+          const prefix = parts[0];
+          const rest = parts.slice(1).join('/');
+          streamPath = `/${prefix}/${creds.username}/${creds.password}/${rest}`;
+        } else {
+          streamPath = `/${creds.username}/${creds.password}/${remaining}`;
+        }
       }
     }
 
@@ -666,8 +683,13 @@ const streamTokenHandler = (req, res) => {
             try {
               const u = new URL(match);
               if (u.hostname === 'logo.m3uassets.com' || /\.(png|jpg|jpeg|gif|svg|ico|webp)$/i.test(match)) return match;
-              const matchPath = u.pathname + u.search;
-              return tokenBaseUrl + matchPath;
+              let cleanPath = u.pathname;
+              if (creds) {
+                cleanPath = cleanPath.replace(`/${creds.username}/${creds.password}`, '');
+                cleanPath = cleanPath.replace(`/${creds.username}`, '');
+              }
+              if (!cleanPath || cleanPath === '/') cleanPath = '';
+              return tokenBaseUrl + cleanPath + u.search;
             } catch { return match; }
           });
 
