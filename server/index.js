@@ -579,7 +579,8 @@ const streamTokenHandler = (req, res) => {
 
     const proxyHost = `${record.subdomain}.${record.proxy_domain || config.domain}`;
     const remaining = req.params.remainingPath || '';
-    const streamPath = '/' + remaining;
+    const queryParams = Object.entries(req.query).filter(([k]) => k !== 'token').map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+    const streamPath = '/' + remaining + (queryParams ? '?' + queryParams : '');
     const targetUrl = record.target_url.replace(/\/$/, '') + streamPath;
 
     const client = targetUrl.startsWith('https') ? require('https') : require('http');
