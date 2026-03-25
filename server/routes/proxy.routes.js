@@ -393,8 +393,7 @@ router.post('/:id/generate-token', (req, res) => {
     db.createStreamToken(token, proxy.id, expiresAt, encryptedCreds);
 
     const config = require('../config');
-    const domain = proxy.proxy_domain || config.domain;
-    const streamUrl = `https://${domain}/stream/${token}`;
+    const streamUrl = `http://${config.domain}/stream/${token}`;
 
     db.addActivityLog(req.user.id, req.user.username, req.ip, 'Stream', 'TokenCreated', `${proxy.subdomain} (${durationHours}h${username ? ', with credentials' : ''})`);
 
