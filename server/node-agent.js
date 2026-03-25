@@ -125,11 +125,24 @@ function checkBandwidthLimit(proxyId, limitMbps) {
   return (bandwidthPerSecond[proxyId] || 0) < limitMbps * 125000;
 }
 
+const lastBwActivity = {};
 setInterval(() => {
-  for (const id in bandwidthPerSecond) bandwidthPerSecond[id] = 0;
+  for (const id in bandwidthPerSecond) {
+    if (bandwidthPerSecond[id] > 0) lastBwActivity[id] = Date.now();
+    bandwidthPerSecond[id] = 0;
+  }
   lastRequestsSnapshot = requestsPerSecond;
   requestsPerSecond = 0;
 }, 1000);
+
+setInterval(() => {
+  const now = Date.now();
+  for (const id in activeConnections) {
+    if (activeConnections[id] > 0 && (!lastBwActivity[id] || now - lastBwActivity[id] > 60000)) {
+      activeConnections[id] = 0;
+    }
+  }
+}, 30000);
 
 setInterval(async () => {
   try {
@@ -176,7 +189,13 @@ function handleTokenStream(req, res, tokenData) {
   if (!activeConnections[proxyId]) activeConnections[proxyId] = 0;
   activeConnections[proxyId]++;
   requestsPerSecond++;
-  res.on('close', () => { if (activeConnections[proxyId] > 0) activeConnections[proxyId]--; });
+  let connClosed = false;
+  const closeConn = () => { if (!connClosed) { connClosed = true; if (activeConnections[proxyId] > 0) activeConnections[proxyId]--; } };
+  res.on('close', closeConn);
+  res.on('error', closeConn);
+  req.on('close', closeConn);
+  req.on('aborted', closeConn);
+  req.socket?.on('close', closeConn);
 
   const record = { id: proxyId };
   const tokenStr = req.url.split('/stream/')[1]?.split('/')[0] || '';
@@ -374,7 +393,13 @@ const server = http.createServer(async (req, res) => {
   if (!activeConnections[record.id]) activeConnections[record.id] = 0;
   activeConnections[record.id]++;
   requestsPerSecond++;
-  res.on('close', () => { if (activeConnections[record.id] > 0) activeConnections[record.id]--; });
+  let connClosed2 = false;
+  const closeConn2 = () => { if (!connClosed2) { connClosed2 = true; if (activeConnections[record.id] > 0) activeConnections[record.id]--; } };
+  res.on('close', closeConn2);
+  res.on('error', closeConn2);
+  req.on('close', closeConn2);
+  req.on('aborted', closeConn2);
+  req.socket?.on('close', closeConn2);
 
   const proxyHost = `${subdomain}.${record.proxy_domain || domain}`;
 

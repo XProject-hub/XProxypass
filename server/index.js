@@ -281,10 +281,14 @@ app.use((req, res, next) => {
     }
 
     addServerConnection(serverId);
-    res.on('close', () => {
-      if (activeConnections[record.id] > 0) activeConnections[record.id]--;
-      removeServerConnection(serverId);
-    });
+    let connClosed = false;
+    const closeConn = () => {
+      if (!connClosed) { connClosed = true; if (activeConnections[record.id] > 0) activeConnections[record.id]--; removeServerConnection(serverId); }
+    };
+    res.on('close', closeConn);
+    res.on('error', closeConn);
+    req.on('close', closeConn);
+    req.on('aborted', closeConn);
 
     const proxyHost = `${subdomain}.${record.proxy_domain || domain || config.domain}`;
     const proxyOptions = {
@@ -607,10 +611,14 @@ const streamTokenHandler = (req, res) => {
     }
 
     addServerConnection(serverId);
-    res.on('close', () => {
-      if (activeConnections[record.id] > 0) activeConnections[record.id]--;
-      removeServerConnection(serverId);
-    });
+    let tokenConnClosed = false;
+    const closeTokenConn = () => {
+      if (!tokenConnClosed) { tokenConnClosed = true; if (activeConnections[record.id] > 0) activeConnections[record.id]--; removeServerConnection(serverId); }
+    };
+    res.on('close', closeTokenConn);
+    res.on('error', closeTokenConn);
+    req.on('close', closeTokenConn);
+    req.on('aborted', closeTokenConn);
 
     let creds = null;
     if (tokenRecord.credentials) {
