@@ -423,13 +423,21 @@ router.get('/servers/:id/uptime', async (req, res) => {
 
 router.post('/servers/:id/server-type', (req, res) => {
   try {
-    const { type } = req.body;
-    if (!['all', 'dns', 'stream', 'enterprise'].includes(type)) {
-      return res.status(400).json({ error: 'Type must be all, dns, stream, or enterprise' });
+    const { type, types } = req.body;
+    const validTypes = ['all', 'dns', 'stream', 'enterprise'];
+    let typeValue;
+    if (types && Array.isArray(types)) {
+      const filtered = types.filter(t => validTypes.includes(t));
+      typeValue = filtered.length > 0 ? JSON.stringify(filtered) : 'all';
+    } else {
+      if (!validTypes.includes(type)) {
+        return res.status(400).json({ error: 'Type must be all, dns, stream, or enterprise' });
+      }
+      typeValue = type;
     }
     const server = db.getServerById(req.params.id);
     if (!server) return res.status(404).json({ error: 'Server not found' });
-    db.updateServerType(req.params.id, type);
+    db.updateServerType(req.params.id, typeValue);
     db.addActivityLog(req.user.id, req.user.username, req.ip, 'Server', 'TypeChange', `${server.ip}: ${type}`);
     res.json({ server: db.getServerById(req.params.id) });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }

@@ -136,15 +136,26 @@ function getSubdomain(hostname) {
 
 const serverConnections = {};
 
-function getProxyAgent(country) {
+function serverMatchesType(server, requiredType) {
+  const st = server.server_type || 'all';
+  if (st === 'all') return true;
+  try {
+    const types = JSON.parse(st);
+    if (Array.isArray(types)) return types.includes('all') || types.includes(requiredType);
+  } catch {}
+  return st === requiredType || st === 'all';
+}
+
+function getProxyAgent(country, proxyType) {
   if (!country || country === 'auto') return { agent: undefined, serverId: null };
+  const requiredType = proxyType || 'dns';
 
   const ownServers = db.getServersByCountry(country.toUpperCase());
   if (ownServers.length > 0) {
     const available = ownServers.filter(s => {
       const current = serverConnections[s.id] || 0;
       const max = s.max_connections || 100;
-      return current < max;
+      return current < max && serverMatchesType(s, requiredType);
     });
 
     if (available.length > 0) {
@@ -272,7 +283,8 @@ app.use((req, res, next) => {
     if (!activeConnections[record.id]) activeConnections[record.id] = 0;
     activeConnections[record.id]++;
 
-    const { agent, serverId } = getProxyAgent(record.country);
+    const proxyType = record.stream_proxy === 2 ? 'stream' : 'dns';
+    const { agent, serverId } = getProxyAgent(record.country, proxyType);
 
     if (serverId === 'full') {
       activeConnections[record.id]--;
@@ -604,7 +616,7 @@ const streamTokenHandler = (req, res) => {
     if (!activeConnections[record.id]) activeConnections[record.id] = 0;
     activeConnections[record.id]++;
 
-    const { agent, serverId } = getProxyAgent(record.country);
+    const { agent, serverId } = getProxyAgent(record.country, 'stream');
     if (serverId === 'full') {
       activeConnections[record.id]--;
       return res.status(503).json({ error: 'No servers available.' });
@@ -976,7 +988,8 @@ server.on('upgrade', (req, socket, head) => {
       const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || req.socket?.remoteAddress;
       if (!isIpAllowed(record.ip_lock, clientIp)) { socket.destroy(); return; }
 
-      const { agent, serverId } = getProxyAgent(record.country);
+      const wsProxyType = record.stream_proxy === 2 ? 'stream' : 'dns';
+      const { agent, serverId } = getProxyAgent(record.country, wsProxyType);
       if (serverId === 'full') { socket.destroy(); return; }
       addServerConnection(serverId);
       socket.on('close', () => removeServerConnection(serverId));

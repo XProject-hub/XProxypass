@@ -956,18 +956,44 @@ export default function Admin() {
                           <td className="px-3 py-3 text-slate-300 text-xs">{s.country}</td>
                           <td className="px-3 py-3 text-slate-400 text-xs">{s.label || '-'}</td>
                           <td className="px-3 py-3">
-                            <select value={s.server_type || 'all'} onChange={async (e) => {
-                              await fetch(`/api/admin/servers/${s.id}/server-type`, {
-                                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ type: e.target.value }),
-                              });
-                              loadData();
-                            }} className="bg-transparent border-0 text-[10px] font-semibold uppercase cursor-pointer text-slate-400">
-                              <option value="all" className="bg-[#0a0a14]">All</option>
-                              <option value="dns" className="bg-[#0a0a14]">DNS</option>
-                              <option value="stream" className="bg-[#0a0a14]">Stream</option>
-                              <option value="enterprise" className="bg-[#0a0a14]">Enterprise</option>
-                            </select>
+                            {(() => {
+                              let currentTypes = [];
+                              try { currentTypes = JSON.parse(s.server_type); } catch {}
+                              if (!Array.isArray(currentTypes)) currentTypes = s.server_type === 'all' ? ['all'] : [s.server_type || 'all'];
+                              const toggleType = async (t) => {
+                                let next;
+                                if (t === 'all') {
+                                  next = ['all'];
+                                } else {
+                                  let arr = currentTypes.filter(x => x !== 'all');
+                                  if (arr.includes(t)) arr = arr.filter(x => x !== t);
+                                  else arr.push(t);
+                                  next = arr.length === 0 ? ['all'] : arr;
+                                }
+                                await fetch(`/api/admin/servers/${s.id}/server-type`, {
+                                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ types: next }),
+                                });
+                                loadData();
+                              };
+                              return (
+                                <div className="flex flex-wrap gap-1">
+                                  {['all', 'dns', 'stream', 'enterprise'].map(t => (
+                                    <button key={t} onClick={() => toggleType(t)}
+                                      className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded transition-all ${
+                                        currentTypes.includes(t)
+                                          ? t === 'all' ? 'bg-slate-500/20 text-slate-300'
+                                          : t === 'dns' ? 'bg-blue-500/20 text-blue-400'
+                                          : t === 'stream' ? 'bg-purple-500/20 text-purple-400'
+                                          : 'bg-amber-500/20 text-amber-400'
+                                        : 'bg-white/[0.03] text-slate-600 hover:text-slate-400'
+                                      }`}>
+                                      {t}
+                                    </button>
+                                  ))}
+                                </div>
+                              );
+                            })()}
                           </td>
                           <td className="px-3 py-3">
                             {(() => {
