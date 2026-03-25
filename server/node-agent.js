@@ -200,12 +200,10 @@ function handleTokenStream(req, res, tokenData) {
       const rdUrl = proxyRes.headers.location;
       const cl2 = rdUrl.startsWith('https') ? https : http;
       cl2.get(rdUrl, { timeout: 30000 }, (finalRes) => {
-        const hdrs = { ...finalRes.headers };
-        delete hdrs['content-security-policy'];
-        hdrs['cache-control'] = 'no-store, no-cache';
-        res.writeHead(finalRes.statusCode, hdrs);
         streamResponse(finalRes, res, record);
-      }).on('error', () => { res.writeHead(502); res.end('Stream unavailable'); });
+      }).on('error', () => {
+        if (!res.headersSent) { res.writeHead(502); res.end('Stream unavailable'); }
+      });
       return;
     }
 
@@ -278,11 +276,20 @@ function handleTokenStream(req, res, tokenData) {
       delete hdrs['content-security-policy'];
       hdrs['cache-control'] = 'no-store, no-cache';
       if (proxyRes.statusCode === 206) hdrs['accept-ranges'] = 'bytes';
-      res.writeHead(proxyRes.statusCode, hdrs);
-      streamResponse(proxyRes, res, record);
+      if (!res.headersSent) res.writeHead(proxyRes.statusCode, hdrs);
+      let pending = 0;
+      const flush = setInterval(() => { if (pending > 0) { addBW(proxyId, pending); pending = 0; } }, 5000);
+      proxyRes.on('data', chunk => {
+        res.write(chunk);
+        pending += chunk.length;
+        if (!bandwidthPerSecond[proxyId]) bandwidthPerSecond[proxyId] = 0;
+        bandwidthPerSecond[proxyId] += chunk.length;
+      });
+      proxyRes.on('end', () => { clearInterval(flush); res.end(); if (pending > 0) addBW(proxyId, pending); });
+      res.on('close', () => { clearInterval(flush); proxyRes.destroy(); if (pending > 0) addBW(proxyId, pending); });
     }
   });
-  proxyReq.on('error', () => { res.writeHead(502); res.end('Stream unavailable'); });
+  proxyReq.on('error', () => { if (!res.headersSent) { res.writeHead(502); res.end('Stream unavailable'); } });
 }
 
 const server = http.createServer(async (req, res) => {
