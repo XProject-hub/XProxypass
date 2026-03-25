@@ -10,6 +10,42 @@ Create proxy endpoints that route traffic through your own VPS servers to backen
 
 ---
 
+## Changelog (v2.1 - March 2026)
+
+### Security
+- **Squid Proxy Locked Down** - Squid on VPS nodes now only accepts connections from the master server IP and localhost. Previously it was open to all (`acl all src 0.0.0.0/0`), allowing anyone to abuse VPS nodes as open proxies. ACL is auto-configured during install using master domain DNS resolution or SSH client IP fallback.
+- **Secure Squid Button** - Admin panel Servers tab now has a shield icon to instantly lock down Squid on existing VPS servers without reinstalling. Rewrites squid.conf via SSH and restarts Squid.
+- **HSTS SubDomain Fix** - Helmet HSTS header no longer includes `includeSubDomains`, preventing browsers from forcing HTTPS on VPS-hosted subdomains that use self-signed certificates.
+
+### Streaming
+- **VLC Tokenized Stream Fix** - Token stream handler now forwards client headers (Range, Accept, User-Agent, Accept-Encoding, If-Range, If-Modified-Since, Connection) to the origin server. VLC and IPTV players require Range headers for proper playback and 206 Partial Content responses.
+- **Token Streams Route Through VPS** - When a proxy has a country set and Cloudflare DNS is configured, token URLs now use the proxy subdomain (e.g., `http://sub.domain.com/stream/TOKEN`) instead of the master domain. Traffic goes directly Client → VPS Node Agent → Origin, so bandwidth is consumed on the VPS only, not the master server.
+- **Node Agent Token Handler** - VPS node agents now handle `/stream/TOKEN` routes. The node agent validates tokens with the master via `POST /api/node/validate-token`, receives the constructed target URL with credentials injected, and streams directly from the origin.
+- **Redirect Fix for All Proxies** - Origin 301/302/307/308 redirects are now followed server-side for ALL proxy types, not just stream proxies. Previously DNS-only proxies passed redirects to the client, which broke IPTV backends that redirect to CDNs or load balancers.
+
+### Admin Panel
+- **Password Change** - Admins can now change any user's or reseller's password. Key icon button in the Users tab opens a password change modal. Minimum 6 characters, bcrypt hashed with 12 rounds. Logged to activity log.
+- **VPS Active Users Fix** - Servers tab now shows actual active connections on VPS nodes. Previously only displayed master-side connections; now merges node-reported connections (`node_{id}_conns` from report-stats) into the server connections data.
+- **Live Req/s Fix** - Requests per second counter no longer shows 0. The 1-second reset interval now captures a snapshot before clearing, so the 2-second Socket.IO broadcast always has the last known good value.
+- **Live Mbps Fix** - Same snapshot approach for bandwidth per second. The live dashboard Mbps indicator no longer flickers to 0 between broadcast intervals.
+
+### API
+- `PATCH /api/admin/users/:id/password` - Admin change user password
+- `POST /api/admin/servers/:id/secure-squid` - Lock Squid ACL to master IP
+- `POST /api/node/validate-token` - Node agent token validation (returns target URL with credentials)
+
+### VPS Node Agent
+- Token stream handling with full credential injection, URL rewriting, header forwarding
+- M3U URL rewriting for token streams (strips credentials from URLs, rewrites to token base URL)
+- Xtream Codes `server_info` JSON rewriting on token responses
+- `headersSent` guards to prevent double writeHead crashes
+- Bandwidth tracking and stats reporting for token streams
+
+### Manual Node Install
+- `manual-node-install.sh` now resolves master IP and locks Squid ACL automatically
+
+---
+
 ## How It Works
 
 ```
@@ -84,10 +120,13 @@ User visits: mysite.proxyxpass.com
 
 ### Token Authentication for Streams
 - Generate time-limited tokens for stream access
-- URL format: `https://domain.com/stream/subdomain?token=xyz`
+- URL format: `http://subdomain.domain.com/stream/TOKEN` (routes to VPS when country set)
+- Fallback: `http://domain.com/stream/TOKEN` (routes to master when country=auto)
 - Token expiry enforcement
 - IP lock compatible
+- IPTV credential injection (username/password encrypted AES-256-CBC)
 - Bandwidth and speed limit enforcement on token routes
+- VLC/IPTV player compatible (Range, Accept, User-Agent headers forwarded)
 
 ### IP Lock
 - User locks proxy to their current IP address
@@ -99,6 +138,8 @@ User visits: mysite.proxyxpass.com
 - Add your own VPS servers as proxy nodes
 - Auto SSH install of Squid proxy + Node Agent on new servers
 - Both Squid (port 3128) and Node Agent (port 3000) deployed together
+- Squid ACL restricted to master server IP + localhost (auto-configured)
+- Secure Squid button in admin panel to lock down existing servers
 - Server controls via SSH: Start, Stop, Restart Squid, Reboot VPS
 - Auto health check every 3 minutes (TCP check with retry)
 - Real-time server monitoring: CPU, RAM, Disk usage, uptime
@@ -140,10 +181,10 @@ User visits: mysite.proxyxpass.com
 
 ### Admin Panel (sidebar navigation)
 - **Proxies** - All proxies with subdomain, target, owner, live connections, bandwidth used, requests, status (auto-refresh 5s)
-- **Users** - All users, create user manually, add credits, role dropdown (user/reseller/admin), delete
+- **Users** - All users, create user manually, add credits, change password, role dropdown (user/reseller/admin), delete
 - **Domains** - Add/remove/toggle proxy domains, multi-domain support
 - **Streams** - Stream proxy requests: approve/deny/revoke, bandwidth limit, used bandwidth
-- **Servers** - VPS management: add/edit/delete, Start/Stop/Restart/Reboot via SSH, health check, uptime, CPU/RAM/Disk (auto-refresh 10s)
+- **Servers** - VPS management: add/edit/delete, Start/Stop/Restart/Reboot via SSH, Secure Squid, health check, uptime, CPU/RAM/Disk (auto-refresh 10s)
 - **Plans** - Stream plan CRUD (create/edit/toggle/delete), subscription overview with cancel
 - **Credits** - Full credit transaction history
 - **Activity** - All user actions with IP addresses
@@ -338,6 +379,7 @@ node -e "const db = require('./server/database'); db.setAdmin(1, 1); console.log
 - `POST /api/admin/users/:id/credits` - Add credits
 - `PATCH /api/admin/users/:id/role` - Change role (user/reseller/admin)
 - `POST /api/admin/users/:id/reseller-limits` - Set reseller limits
+- `PATCH /api/admin/users/:id/password` - Change password
 - `DELETE /api/admin/users/:id` - Delete user
 - `GET /api/admin/proxies` - All proxies
 - `DELETE /api/admin/proxies/:id` - Delete proxy
@@ -347,10 +389,12 @@ node -e "const db = require('./server/database'); db.setAdmin(1, 1); console.log
 - `DELETE /api/admin/stream-plans/:id` - Delete plan
 - `GET /api/admin/subscriptions` - All subscriptions
 - `POST /api/admin/subscriptions/:id/cancel` - Cancel subscription
+- `POST /api/admin/servers/:id/secure-squid` - Lock Squid ACL to master IP
 - Server management, domain management, settings, credits, activity endpoints
 
 ### Stream Token Access
-- `GET /stream/:subdomain?token=xyz` - Access stream via token
+- `GET /stream/:token` - Access stream via token (M3U download)
+- `GET /stream/:token/*path` - Stream content via token (video/audio)
 
 ### Live Stats
 - `GET /api/connections/:id` - Active connections for proxy
@@ -454,13 +498,22 @@ pm2 delete all && pm2 start ecosystem.config.js && pm2 save  # Clean restart
 
 ## Update
 
+### Master Server
 ```bash
 cd /opt/xproxypass
-git pull
-npm install
-cd client && npm install && npm run build && cd ..
-pm2 delete all && pm2 start ecosystem.config.js && pm2 save
+git pull origin main
+npm install --prefix client
+npm run build --prefix client
+pm2 restart all
 ```
+
+### VPS Node Agent
+```bash
+cd /opt/proxyxpass-node
+curl -sL https://yourdomain.com/api/node/agent-script -H 'X-Node-Secret: YOUR_NODE_SECRET' -o node-agent.js
+pm2 restart proxyxpass-node
+```
+Note: Use single quotes for the `-H` header if your NODE_SECRET contains `!` characters (bash history expansion).
 
 ---
 
