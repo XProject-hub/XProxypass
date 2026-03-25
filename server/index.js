@@ -171,6 +171,10 @@ app.use(
   helmet({
     contentSecurityPolicy: false,
     crossOriginEmbedderPolicy: false,
+    strictTransportSecurity: {
+      maxAge: 15552000,
+      includeSubDomains: false,
+    },
   })
 );
 
