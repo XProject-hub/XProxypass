@@ -636,10 +636,10 @@ const streamTokenHandler = (req, res) => {
       }
 
       const contentType = proxyRes.headers['content-type'] || '';
-      const reqPath = (remaining || '').toLowerCase();
+      const fullPath = streamPath.toLowerCase();
       const isTextResponse = contentType.includes('text') || contentType.includes('json') ||
         contentType.includes('mpegurl') || contentType.includes('xml') || contentType.includes('javascript') ||
-        contentType.includes('octet-stream') && (reqPath.includes('get.php') || reqPath.includes('.m3u') || reqPath.includes('player_api'));
+        (contentType.includes('octet-stream') && (fullPath.includes('get.php') || fullPath.includes('.m3u') || fullPath.includes('player_api')));
 
       if (isTextResponse && creds) {
         const chunks = [];
