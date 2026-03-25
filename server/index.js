@@ -614,8 +614,8 @@ const streamTokenHandler = (req, res) => {
 
     const targetUrl = record.target_url.replace(/\/$/, '') + streamPath;
     const reqProto = req.headers['x-forwarded-proto'] || 'http';
-    const reqHost = req.headers.host || config.domain;
-    const tokenBaseUrl = `${reqProto}://${reqHost}/stream/${tokenStr}`;
+    const proxyDomain = `${record.subdomain}.${record.proxy_domain || config.domain}`;
+    const tokenBaseUrl = `${reqProto}://${proxyDomain}/stream/${tokenStr}`;
 
     const httpClient = targetUrl.startsWith('https') ? require('https') : require('http');
     const proxyReqOpts = { timeout: 30000 };
