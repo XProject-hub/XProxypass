@@ -943,7 +943,7 @@ export default function Admin() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-white/[0.06]">
-                        {['IP', 'Country', 'Label', 'Type', 'Usage', 'Max', 'Uptime', 'Status', ''].map(h => (
+                        {['ID', 'IP', 'Country', 'Label', 'Type', 'Usage', 'Max', 'Uptime', 'Status', ''].map(h => (
                           <th key={h} className="text-left px-3 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
@@ -951,6 +951,7 @@ export default function Admin() {
                     <tbody>
                       {servers.map(s => (
                         <tr key={s.id} className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
+                          <td className="px-3 py-3 text-slate-600 font-mono text-xs">{s.id}</td>
                           <td className="px-3 py-3 text-cyan-400 font-mono text-xs">{s.ip}:{s.port}</td>
                           <td className="px-3 py-3 text-slate-300 text-xs">{s.country}</td>
                           <td className="px-3 py-3 text-slate-400 text-xs">{s.label || '-'}</td>
