@@ -508,10 +508,7 @@ app.use((req, res, next) => {
 });
 
 // Token-based stream access: /stream/:subdomain?token=xyz
-app.get('/stream-test', (req, res) => res.json({ ok: true }));
-
 const streamTokenHandler = (req, res) => {
-  console.log('[StreamToken] Hit:', req.url, req.params, req.query);
   try {
     const { token } = req.query;
     if (!token) {
