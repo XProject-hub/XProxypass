@@ -595,7 +595,7 @@ const streamTokenHandler = (req, res) => {
       creds = decryptCredentials(tokenRecord.credentials);
     }
 
-    const remaining = req.params.remainingPath || '';
+    const remaining = String(req.params.remainingPath || '');
     let streamPath = '/' + remaining;
 
     if (creds && !remaining) {
