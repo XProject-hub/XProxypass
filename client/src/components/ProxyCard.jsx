@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Globe, ArrowRight, Pause, Play, Trash2, ExternalLink, MapPin, Clock, RefreshCw, Radio, Edit3, Check, X, Lock, Unlock, Key, Copy, Loader2 } from 'lucide-react';
+import { Globe, ArrowRight, Pause, Play, Trash2, ExternalLink, MapPin, Clock, RefreshCw, Radio, Edit3, Check, X, Lock, Unlock, Key, Copy, Loader2, Plus, Shield } from 'lucide-react';
 
 export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, onRequestStream, onEdit, onUpdate }) {
   const proxyUrl = `${proxy.subdomain}.${proxy.proxy_domain || domain}`;
@@ -19,6 +19,8 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, 
   const [tokenPass, setTokenPass] = useState('');
   const [generatingToken, setGeneratingToken] = useState(false);
   const [ipLocking, setIpLocking] = useState(false);
+  const [showIpPanel, setShowIpPanel] = useState(false);
+  const [newIp, setNewIp] = useState('');
 
   const [liveData, setLiveData] = useState({ connections: 0, bandwidth_mbps: '0.00' });
 
@@ -61,19 +63,43 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, 
     }
   };
 
-  const handleIpLock = async () => {
+  const ipList = (() => {
+    if (!proxy.ip_lock) return [];
+    try { const arr = JSON.parse(proxy.ip_lock); return Array.isArray(arr) ? arr : [proxy.ip_lock]; }
+    catch { return proxy.ip_lock ? [proxy.ip_lock] : []; }
+  })();
+
+  const addIp = async () => {
+    const ip = newIp.trim();
+    if (!ip || !/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) return;
     setIpLocking(true);
     try {
-      if (proxy.ip_lock) {
-        const res = await fetch(`/api/proxies/${proxy.id}/ip-lock`, { method: 'DELETE' });
-        if (res.ok && onUpdate) { const d = await res.json(); onUpdate(d.proxy); }
-      } else {
-        const res = await fetch(`/api/proxies/${proxy.id}/ip-lock`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
-        });
-        if (res.ok && onUpdate) { const d = await res.json(); onUpdate(d.proxy); }
-      }
+      const res = await fetch(`/api/proxies/${proxy.id}/ip-lock`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip }),
+      });
+      if (res.ok && onUpdate) { const d = await res.json(); onUpdate(d.proxy); setNewIp(''); }
+      else { const d = await res.json(); alert(d.error || 'Failed'); }
+    } catch {} finally { setIpLocking(false); }
+  };
+
+  const removeIp = async (ip) => {
+    setIpLocking(true);
+    try {
+      const res = await fetch(`/api/proxies/${proxy.id}/ip-lock`, {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip }),
+      });
+      if (res.ok && onUpdate) { const d = await res.json(); onUpdate(d.proxy); }
+    } catch {} finally { setIpLocking(false); }
+  };
+
+  const clearAllIps = async () => {
+    if (!confirm('Remove all whitelisted IPs? Stream will be accessible from any IP.')) return;
+    setIpLocking(true);
+    try {
+      const res = await fetch(`/api/proxies/${proxy.id}/ip-lock`, { method: 'DELETE' });
+      if (res.ok && onUpdate) { const d = await res.json(); onUpdate(d.proxy); }
     } catch {} finally { setIpLocking(false); }
   };
 
@@ -141,9 +167,9 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, 
                   Stream Pending
                 </span>
               )}
-              {proxy.ip_lock && (
+              {ipList.length > 0 && (
                 <span className="text-[10px] font-medium text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full flex items-center gap-0.5">
-                  <Lock className="w-2.5 h-2.5" /> {proxy.ip_lock}
+                  <Shield className="w-2.5 h-2.5" /> {ipList.length} IP{ipList.length > 1 ? 's' : ''}
                 </span>
               )}
             </div>
@@ -158,10 +184,10 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, 
           <button onClick={openEdit} className="p-2 rounded-lg hover:bg-blue-500/10 text-slate-500 hover:text-blue-400 transition-all" title="Edit">
             <Edit3 className="w-4 h-4" />
           </button>
-          <button onClick={handleIpLock} disabled={ipLocking}
-            className={`p-2 rounded-lg transition-all ${proxy.ip_lock ? 'hover:bg-emerald-500/10 text-rose-400 hover:text-emerald-400' : 'hover:bg-rose-500/10 text-slate-500 hover:text-rose-400'}`}
-            title={proxy.ip_lock ? `Unlock (locked to ${proxy.ip_lock})` : 'Lock to your IP'}>
-            {ipLocking ? <Loader2 className="w-4 h-4 animate-spin" /> : proxy.ip_lock ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+          <button onClick={() => setShowIpPanel(!showIpPanel)}
+            className={`p-2 rounded-lg transition-all ${ipList.length > 0 ? 'hover:bg-emerald-500/10 text-rose-400 hover:text-emerald-400' : 'hover:bg-rose-500/10 text-slate-500 hover:text-rose-400'}`}
+            title={ipList.length > 0 ? `IP Whitelist (${ipList.length})` : 'IP Whitelist'}>
+            <Shield className="w-4 h-4" />
           </button>
           {proxy.stream_proxy === 2 && (
             <button onClick={() => { setShowTokens(!showTokens); if (!showTokens) loadTokens(); }}
@@ -219,6 +245,46 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, 
             <button onClick={() => { setEditing(false); setEditSub(proxy.subdomain); setEditTarget(proxy.target_url); setEditCountry(proxy.country || 'auto'); }}
               className="btn-secondary text-xs flex items-center gap-1" style={{ padding: '0.4rem 0.8rem' }}>
               <X className="w-3 h-3" /> Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* IP Whitelist Panel */}
+      {showIpPanel && (
+        <div className="mb-4 p-3 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-medium text-slate-300">IP Whitelist</span>
+            {ipList.length > 0 && (
+              <button onClick={clearAllIps} disabled={ipLocking} className="text-[10px] text-red-400 hover:text-red-300 transition-colors">
+                Clear All
+              </button>
+            )}
+          </div>
+          <p className="text-[10px] text-slate-600 mb-3">
+            {ipList.length === 0 ? 'No IPs added. Stream accessible from any IP.' : 'Only whitelisted IPs can access this proxy.'}
+          </p>
+          {ipList.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {ipList.map(ip => (
+                <span key={ip} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-500/10 text-rose-400 text-[11px] font-mono">
+                  {ip}
+                  <button onClick={() => removeIp(ip)} disabled={ipLocking}
+                    className="hover:text-rose-300 transition-colors ml-0.5">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <input value={newIp} onChange={e => setNewIp(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && addIp()}
+              placeholder="Enter IP address (e.g. 1.2.3.4)"
+              className="bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder-slate-600 flex-1" />
+            <button onClick={addIp} disabled={ipLocking || !newIp.trim()}
+              className="btn-primary text-[10px] flex items-center gap-1" style={{ padding: '0.4rem 0.7rem' }}>
+              {ipLocking ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Plus className="w-3 h-3" /> Add</>}
             </button>
           </div>
         </div>

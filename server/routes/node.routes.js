@@ -114,8 +114,13 @@ router.post('/validate-token', (req, res) => {
     if (tokenRecord.proxy_expires_at && new Date(tokenRecord.proxy_expires_at) < new Date()) {
       return res.json({ valid: false, error: 'Proxy expired' });
     }
-    if (tokenRecord.ip_lock && client_ip && tokenRecord.ip_lock !== client_ip) {
-      return res.json({ valid: false, error: 'Access denied. IP locked.' });
+    if (tokenRecord.ip_lock && client_ip) {
+      let allowed = true;
+      try {
+        const ips = JSON.parse(tokenRecord.ip_lock);
+        if (Array.isArray(ips) && ips.length > 0) allowed = ips.includes(client_ip);
+      } catch { allowed = tokenRecord.ip_lock === client_ip; }
+      if (!allowed) return res.json({ valid: false, error: 'Access denied. Your IP is not whitelisted.' });
     }
 
     let creds = null;

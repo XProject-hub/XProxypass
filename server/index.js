@@ -28,6 +28,17 @@ const app = express();
 const proxy = httpProxy.createProxyServer({ xfwd: true });
 require('events').EventEmitter.defaultMaxListeners = 0;
 
+function isIpAllowed(ipLockValue, clientIp) {
+  if (!ipLockValue) return true;
+  try {
+    const ips = JSON.parse(ipLockValue);
+    if (!Array.isArray(ips) || ips.length === 0) return true;
+    return ips.includes(clientIp);
+  } catch {
+    return ipLockValue === clientIp;
+  }
+}
+
 // proxyPool disabled - using own servers only
 
 const { checkServer } = require('./server-setup');
@@ -226,9 +237,9 @@ app.use((req, res, next) => {
       return res.end(NOT_FOUND_PAGE);
     }
 
-    if (record.ip_lock && record.ip_lock !== req.ip) {
+    if (!isIpAllowed(record.ip_lock, req.ip)) {
       res.writeHead(403, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Access denied. This proxy is locked to a specific IP.' }));
+      return res.end(JSON.stringify({ error: 'Access denied. Your IP is not whitelisted.' }));
     }
 
     const DNS_BW_LIMIT_MBPS = 50;
@@ -561,8 +572,8 @@ const streamTokenHandler = (req, res) => {
       return res.status(404).json({ error: 'Proxy expired' });
     }
 
-    if (tokenRecord.ip_lock && tokenRecord.ip_lock !== req.ip) {
-      return res.status(403).json({ error: 'Access denied. IP locked.' });
+    if (!isIpAllowed(tokenRecord.ip_lock, req.ip)) {
+      return res.status(403).json({ error: 'Access denied. Your IP is not whitelisted.' });
     }
 
     const record = {
@@ -955,7 +966,7 @@ server.on('upgrade', (req, socket, head) => {
     const record = db.getProxyBySubdomain(result.subdomain);
     if (record && record.is_active && !(record.expires_at && new Date(record.expires_at) < new Date())) {
       const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || req.socket?.remoteAddress;
-      if (record.ip_lock && record.ip_lock !== clientIp) { socket.destroy(); return; }
+      if (!isIpAllowed(record.ip_lock, clientIp)) { socket.destroy(); return; }
 
       const { agent, serverId } = getProxyAgent(record.country);
       if (serverId === 'full') { socket.destroy(); return; }

@@ -328,7 +328,7 @@ router.post('/:id/request-stream', (req, res) => {
   }
 });
 
-// ── IP Lock ────────────────────────────────────────
+// ── IP Whitelist ───────────────────────────────────
 
 router.post('/:id/ip-lock', (req, res) => {
   try {
@@ -336,12 +336,26 @@ router.post('/:id/ip-lock', (req, res) => {
     if (!proxy || proxy.user_id !== req.user.id) {
       return res.status(404).json({ error: 'Proxy not found' });
     }
-    const ip = req.body.ip || req.ip;
-    db.setIpLock(proxy.id, ip);
-    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Proxy', 'IpLock', `${proxy.subdomain} locked to ${ip}`);
-    res.json({ message: 'IP lock set', ip_lock: ip, proxy: db.getProxyById(proxy.id) });
+    const ip = req.body.ip;
+    if (!ip || !/^[\d.]+$/.test(ip.trim())) {
+      return res.status(400).json({ error: 'Valid IP address required' });
+    }
+    const ipClean = ip.trim();
+
+    let ips = [];
+    if (proxy.ip_lock) {
+      try { ips = JSON.parse(proxy.ip_lock); } catch { if (proxy.ip_lock) ips = [proxy.ip_lock]; }
+    }
+    if (!Array.isArray(ips)) ips = [];
+    if (ips.includes(ipClean)) {
+      return res.status(409).json({ error: 'IP already whitelisted' });
+    }
+    ips.push(ipClean);
+    db.setIpLock(proxy.id, JSON.stringify(ips));
+    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Proxy', 'IpWhitelist', `${proxy.subdomain} +${ipClean} (${ips.length} total)`);
+    res.json({ message: 'IP added to whitelist', proxy: db.getProxyById(proxy.id) });
   } catch (err) {
-    console.error('IP lock error:', err);
+    console.error('IP whitelist error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -352,11 +366,24 @@ router.delete('/:id/ip-lock', (req, res) => {
     if (!proxy || proxy.user_id !== req.user.id) {
       return res.status(404).json({ error: 'Proxy not found' });
     }
-    db.setIpLock(proxy.id, null);
-    db.addActivityLog(req.user.id, req.user.username, req.ip, 'Proxy', 'IpUnlock', `${proxy.subdomain} unlocked`);
-    res.json({ message: 'IP lock removed', proxy: db.getProxyById(proxy.id) });
+    const ipToRemove = req.body?.ip;
+
+    if (ipToRemove) {
+      let ips = [];
+      if (proxy.ip_lock) {
+        try { ips = JSON.parse(proxy.ip_lock); } catch { if (proxy.ip_lock) ips = [proxy.ip_lock]; }
+      }
+      if (!Array.isArray(ips)) ips = [];
+      ips = ips.filter(ip => ip !== ipToRemove);
+      db.setIpLock(proxy.id, ips.length > 0 ? JSON.stringify(ips) : null);
+      db.addActivityLog(req.user.id, req.user.username, req.ip, 'Proxy', 'IpWhitelist', `${proxy.subdomain} -${ipToRemove} (${ips.length} remaining)`);
+    } else {
+      db.setIpLock(proxy.id, null);
+      db.addActivityLog(req.user.id, req.user.username, req.ip, 'Proxy', 'IpWhitelistClear', `${proxy.subdomain} all IPs removed`);
+    }
+    res.json({ message: 'IP whitelist updated', proxy: db.getProxyById(proxy.id) });
   } catch (err) {
-    console.error('IP unlock error:', err);
+    console.error('IP whitelist error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

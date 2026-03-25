@@ -339,9 +339,16 @@ const server = http.createServer(async (req, res) => {
   }
 
   const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || req.socket?.remoteAddress;
-  if (record.ip_lock && record.ip_lock !== clientIp) {
-    res.writeHead(403, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: 'Access denied. This proxy is locked to a specific IP.' }));
+  if (record.ip_lock) {
+    let allowed = true;
+    try {
+      const ips = JSON.parse(record.ip_lock);
+      if (Array.isArray(ips) && ips.length > 0) allowed = ips.includes(clientIp);
+    } catch { allowed = record.ip_lock === clientIp; }
+    if (!allowed) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Access denied. Your IP is not whitelisted.' }));
+    }
   }
 
   const DNS_BW_LIMIT = 50;
