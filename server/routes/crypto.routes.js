@@ -54,6 +54,30 @@ function verifyIPN(body, signature) {
   return hmac.digest('hex') === signature;
 }
 
+router.get('/packages', (req, res) => {
+  res.json({ packages: CREDIT_PACKAGES });
+});
+
+router.get('/stream-plans', (req, res) => {
+  try {
+    const plans = db.getActiveStreamPlans();
+    const grouped = { streaming: [], enterprise: [], reseller: [] };
+    plans.forEach(p => { if (grouped[p.type]) grouped[p.type].push(p); });
+    res.json({ plans: grouped });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/my-subscription', authenticate, (req, res) => {
+  try {
+    const sub = db.getActiveSubscription(req.user.id);
+    res.json({ active: sub || null });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // ── Create Invoice for Credit Package ──────────────
 
 router.post('/create-invoice', authenticate, async (req, res) => {
