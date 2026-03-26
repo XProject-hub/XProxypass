@@ -141,9 +141,7 @@ router.post('/create-subscription-invoice', authenticate, async (req, res) => {
     if (!plan || !plan.is_active) return res.status(404).json({ error: 'Plan not found' });
 
     const existing = db.getActiveSubscription(req.user.id);
-    if (existing) {
-      return res.status(400).json({ error: 'You already have an active subscription. Cancel it first.' });
-    }
+    const action = existing ? (existing.plan_id === plan.id ? 'extend' : 'switch') : 'new';
 
     const orderId = `sub_${req.user.id}_${plan.id}_${Date.now()}`;
 
@@ -151,7 +149,7 @@ router.post('/create-subscription-invoice', authenticate, async (req, res) => {
       price_amount: plan.price_eur,
       price_currency: 'eur',
       order_id: orderId,
-      order_description: `ProxyXPass ${plan.name} - Monthly Subscription`,
+      order_description: `ProxyXPass ${plan.name} - ${action === 'extend' ? '+1 Month Extension' : '1 Month'}`,
       ipn_callback_url: `https://${config.domain}/api/crypto/ipn`,
       success_url: `https://${config.domain}/dashboard/buy?crypto=success&order=${orderId}`,
       cancel_url: `https://${config.domain}/dashboard/buy?crypto=cancelled`,
@@ -231,23 +229,36 @@ router.post('/ipn', async (req, res) => {
       if (payment.type === 'subscription') {
         const plan = db.getStreamPlanById(payment.plan_id);
         if (plan) {
-          const expiresAt = new Date();
-          expiresAt.setDate(expiresAt.getDate() + 30);
+          const existing = db.getActiveSubscription(payment.user_id);
+          const user = db.getUserById(payment.user_id);
 
-          const sub = db.createSubscription(
-            payment.user_id, plan.id, `crypto_${orderId}`, 'active',
-            plan.speed_mbps, plan.type, new Date().toISOString(), expiresAt.toISOString()
-          );
+          if (existing && existing.plan_id === plan.id) {
+            db.renewSubscription(existing.id);
+            db.addActivityLog(payment.user_id, user?.username, null, 'CryptoPayment', 'SubscriptionExtended',
+              `${plan.name} +30 days - Crypto ${payCurrency} (Order: ${orderId})`);
+            console.log(`[Crypto IPN] Subscription extended: ${plan.name} for user ${payment.user_id}`);
+          } else {
+            if (existing) {
+              db.updateSubscriptionStatus(existing.id, 'replaced');
+            }
+
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + 30);
+
+            db.createSubscription(
+              payment.user_id, plan.id, `crypto_${orderId}`, 'active',
+              plan.speed_mbps, plan.type, new Date().toISOString(), expiresAt.toISOString()
+            );
+
+            db.addActivityLog(payment.user_id, user?.username, null, 'CryptoPayment', 'SubscriptionActivated',
+              `${plan.name} - Crypto ${payCurrency} (Order: ${orderId})`);
+            console.log(`[Crypto IPN] Subscription activated: ${plan.name} for user ${payment.user_id}`);
+          }
 
           if (plan.type === 'reseller') {
             db.updateUserRole(payment.user_id, 'reseller');
             db.setGbpsPool(payment.user_id, plan.speed_mbps);
           }
-
-          const user = db.getUserById(payment.user_id);
-          db.addActivityLog(payment.user_id, user?.username, null, 'CryptoPayment', 'SubscriptionActivated',
-            `${plan.name} - Crypto ${payCurrency} (Order: ${orderId})`);
-          console.log(`[Crypto IPN] Subscription activated: ${plan.name} for user ${payment.user_id}`);
         }
       }
     }

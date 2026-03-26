@@ -273,10 +273,15 @@ export default function BuyCredits() {
                       </li>
                     ))}
                   </ul>
-                  <button onClick={() => handleCryptoSubscribe(plan)} disabled={processing !== null || !!activeSub}
-                    className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all disabled:opacity-50 ${idx === 1 ? 'btn-primary' : 'btn-secondary'}`}>
+                  <button onClick={() => handleCryptoSubscribe(plan)} disabled={processing !== null}
+                    className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all disabled:opacity-50 ${
+                      activeSub?.plan_id === plan.id ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20' :
+                      idx === 1 ? 'btn-primary' : 'btn-secondary'
+                    }`}>
                     {processing === `crypto-sub-${plan.id}` ? <Loader2 className="w-4 h-4 animate-spin" /> :
-                      activeSub ? 'Active Plan' : <><Bitcoin className="w-4 h-4" /> Pay with Crypto</>}
+                      activeSub?.plan_id === plan.id ? <><Zap className="w-4 h-4" /> Extend +1 Month</> :
+                      activeSub ? <><Bitcoin className="w-4 h-4" /> Switch to This Plan</> :
+                      <><Bitcoin className="w-4 h-4" /> Pay with Crypto</>}
                   </button>
                 </div>
               ))}
