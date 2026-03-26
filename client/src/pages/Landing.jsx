@@ -211,7 +211,7 @@ export default function Landing() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
-              { step: '01', icon: UserPlus, title: 'Create Account', desc: 'Sign up for free. Buy credits for DNS proxies or subscribe to a Gbps streaming plan.' },
+              { step: '01', icon: UserPlus, title: 'Create Account', desc: 'Sign up for free. Buy credits for DNS proxies or purchase a Gbps streaming plan.' },
               { step: '02', icon: Globe, title: 'Deploy Proxy', desc: 'Enter your backend URL, choose a subdomain and country. For IPTV, request Stream Proxy mode.' },
               { step: '03', icon: Zap, title: 'Go Live', desc: 'Your proxy is live instantly. All URLs rewritten, real server IP completely hidden.' },
             ].map((item) => (
@@ -300,7 +300,7 @@ export default function Landing() {
                   </div>
                   <p className="text-[10px] text-slate-500 mb-3">Fair use</p>
                   <Link to="/register" className={`w-full inline-flex items-center justify-center py-2 rounded-lg text-xs font-medium transition-all ${plan.popular ? 'btn-primary' : 'btn-secondary'}`}>
-                    Subscribe
+                    Get Started
                   </Link>
                 </div>
               ))}
@@ -320,7 +320,7 @@ export default function Landing() {
                   </div>
                   <p className="text-[10px] text-slate-500 mb-3">Fair use</p>
                   <Link to="/register" className="w-full inline-flex items-center justify-center py-2 rounded-lg text-xs font-medium transition-all btn-secondary">
-                    Subscribe
+                    Get Started
                   </Link>
                 </div>
               ))}
@@ -363,7 +363,7 @@ export default function Landing() {
                   </div>
                   <p className="text-[10px] text-slate-500 mb-3">Dedicated</p>
                   <Link to="/register" className={`w-full inline-flex items-center justify-center py-2 rounded-lg text-xs font-medium transition-all ${plan.popular ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:opacity-90' : 'btn-secondary'}`}>
-                    Subscribe
+                    Get Started
                   </Link>
                 </div>
               ))}
@@ -383,7 +383,7 @@ export default function Landing() {
                   </div>
                   <p className="text-[10px] text-slate-500 mb-3">Dedicated</p>
                   <Link to="/register" className="w-full inline-flex items-center justify-center py-2 rounded-lg text-xs font-medium transition-all btn-secondary">
-                    Subscribe
+                    Get Started
                   </Link>
                 </div>
               ))}
@@ -470,7 +470,7 @@ export default function Landing() {
             />
             <FAQItem
               question="How do Streaming plans work?"
-              answer="Subscribe to a Gbps plan (e.g. 1 Gbps for 99 EUR/month). Create a proxy pointing to your IPTV backend, then request Stream Proxy mode. Once approved, your proxy gets the speed limit from your plan. All M3U and API responses are rewritten automatically."
+              answer="Purchase a Gbps plan (e.g. 1 Gbps for 99 EUR/month). Create a proxy pointing to your IPTV backend, then request Stream Proxy mode. Once approved, your proxy gets the speed limit from your plan. All M3U and API responses are rewritten automatically."
             />
             <FAQItem
               question="What IPTV apps are supported?"
