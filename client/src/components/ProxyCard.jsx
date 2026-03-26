@@ -414,7 +414,7 @@ export default function ProxyCard({ proxy, domain, onToggle, onDelete, onRenew, 
                   <div className="flex items-center gap-1 flex-shrink-0">
                     {!t.is_expired && (
                       <button onClick={() => {
-                        const url = `https://${proxy.proxy_domain || domain}/stream/${proxy.subdomain}?token=${t.token}`;
+                        const url = `http://${proxy.subdomain}.${proxy.proxy_domain || domain}/stream/${t.token}`;
                         navigator.clipboard.writeText(url).then(() => alert('Token URL copied!')).catch(() => {});
                       }} className="p-1 rounded hover:bg-cyan-500/10 text-slate-600 hover:text-cyan-400" title="Copy URL">
                         <Copy className="w-3 h-3" />
