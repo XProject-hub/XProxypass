@@ -66,9 +66,19 @@ router.get('/domains', (req, res) => {
   }
 });
 
+function serverMatchesType(server, requiredType) {
+  const st = server.server_type || 'all';
+  if (st === 'all') return true;
+  try {
+    const types = JSON.parse(st);
+    if (Array.isArray(types)) return types.includes('all') || types.includes(requiredType);
+  } catch {}
+  return st === requiredType || st === 'all';
+}
+
 router.get('/countries', (req, res) => {
   const serverType = req.query.type || 'all';
-  const servers = db.getAllServers().filter(s => s.status === 'online' && (s.server_type === serverType || s.server_type === 'all' || serverType === 'all'));
+  const servers = db.getAllServers().filter(s => s.status === 'online' && (serverType === 'all' || serverMatchesType(s, serverType)));
   const countryMap = {};
   const labels = {};
   for (const s of servers) {

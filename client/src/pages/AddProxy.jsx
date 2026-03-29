@@ -18,7 +18,7 @@ export default function AddProxy() {
 
   useEffect(() => {
     fetch('/api/auth/me').then(r => r.json()).then(d => setCredits(d.user?.credits || 0)).catch(() => {});
-    fetch('/api/proxies/countries').then(r => r.json()).then(d => setCountries(d.countries || [])).catch(() => {});
+    fetch('/api/proxies/countries?type=dns').then(r => r.json()).then(d => setCountries(d.countries || [])).catch(() => {});
     fetch('/api/proxies/domains').then(r => r.json()).then(d => {
       setAvailableDomains(d.domains || []);
       if (d.domains?.length > 0) setForm(f => ({ ...f, proxy_domain: d.domains[0].domain }));
