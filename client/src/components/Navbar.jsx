@@ -37,6 +37,9 @@ export default function Navbar() {
                 <a href="#faq" className="px-4 py-2 text-sm text-slate-400 hover:text-slate-100 transition-colors rounded-lg hover:bg-white/[0.03]">
                   FAQ
                 </a>
+                <Link to="/how-to-use" className="px-4 py-2 text-sm text-slate-400 hover:text-slate-100 transition-colors rounded-lg hover:bg-white/[0.03]">
+                  Guide
+                </Link>
               </>
             )}
             {isDashboard && (
@@ -49,6 +52,9 @@ export default function Navbar() {
                 </Link>
                 <Link to="/dashboard/buy" className={`px-4 py-2 text-sm rounded-lg transition-colors ${location.pathname === '/dashboard/buy' ? 'text-cyan-400 bg-white/[0.05]' : 'text-slate-400 hover:text-slate-100 hover:bg-white/[0.03]'}`}>
                   Buy Credits
+                </Link>
+                <Link to="/how-to-use" className={`px-4 py-2 text-sm rounded-lg transition-colors ${location.pathname === '/how-to-use' ? 'text-cyan-400 bg-white/[0.05]' : 'text-slate-400 hover:text-slate-100 hover:bg-white/[0.03]'}`}>
+                  Guide
                 </Link>
               </>
             )}
@@ -94,6 +100,7 @@ export default function Navbar() {
                 <a href="#how-it-works" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-400 hover:text-slate-100 rounded-lg hover:bg-white/[0.03]">How It Works</a>
                 <a href="#pricing" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-400 hover:text-slate-100 rounded-lg hover:bg-white/[0.03]">Pricing</a>
                 <a href="#faq" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-400 hover:text-slate-100 rounded-lg hover:bg-white/[0.03]">FAQ</a>
+                <Link to="/how-to-use" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-400 hover:text-slate-100 rounded-lg hover:bg-white/[0.03]">Guide</Link>
               </>
             )}
             <div className="pt-2 border-t border-white/[0.06] space-y-2">

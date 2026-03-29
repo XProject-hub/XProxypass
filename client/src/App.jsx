@@ -8,6 +8,7 @@ import AddProxy from './pages/AddProxy';
 import Admin from './pages/Admin';
 import BuyCredits from './pages/BuyCredits';
 import Reseller from './pages/Reseller';
+import HowToUse from './pages/HowToUse';
 
 const AuthContext = createContext(null);
 
@@ -70,6 +71,7 @@ export default function App() {
           <Route path="/dashboard/buy" element={<ProtectedRoute><BuyCredits /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
           <Route path="/reseller" element={<ProtectedRoute><Reseller /></ProtectedRoute>} />
+          <Route path="/how-to-use" element={<HowToUse />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
