@@ -255,11 +255,6 @@ app.use((req, res, next) => {
 
     const DNS_BW_LIMIT_MBPS = 50;
 
-    if (record.stream_proxy !== 2 && isStreamRequest(req)) {
-      res.writeHead(403, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Streaming is not enabled for this proxy.' }));
-    }
-
     if (record.stream_proxy === 2) {
       const speedLimit = record.speed_limit_mbps || record.bandwidth_limit || 0;
       if (speedLimit > 0 && !checkBandwidthLimit(record.id, speedLimit)) {
@@ -489,29 +484,18 @@ app.use((req, res, next) => {
 
           let body = raw.toString('utf8');
 
-          if (record.stream_proxy === 2) {
-            body = rewriteAllExternalUrls(body);
-          } else {
-            const trimmedBody = body.trimStart();
-            const isM3UBody = trimmedBody.startsWith('#EXTM3U') || trimmedBody.startsWith('#EXTINF');
+          body = record.stream_proxy === 2 ? rewriteAllExternalUrls(body) : rewriteUrl(body);
 
-            if (isM3UBody) {
-              // DNS proxy: keep original stream URLs - streams go directly from user's panel
-            } else if (body.includes('"server_info"') || (body.includes('"url"') && body.includes('"port"'))) {
-              try {
-                const json = JSON.parse(body);
-                if (json.server_info) {
-                  json.server_info.url = proxyHostname;
-                  json.server_info.port = req.headers['x-forwarded-port'] || '80';
-                  if (json.server_info.https_port) json.server_info.https_port = '443';
-                }
-                body = JSON.stringify(json);
-              } catch {
-                body = rewriteUrl(body);
+          if (body.includes('"server_info"') && body.includes('"url"')) {
+            try {
+              const json = JSON.parse(body);
+              if (json.server_info) {
+                json.server_info.url = proxyHostname;
+                json.server_info.port = req.headers['x-forwarded-port'] || '443';
+                if (json.server_info.https_port) json.server_info.https_port = '443';
               }
-            } else {
-              body = rewriteUrl(body);
-            }
+              body = JSON.stringify(json);
+            } catch {}
           }
 
           const isHtmlResponse = contentType.includes('text/html') || (body.includes('<html') && body.includes('<head'));
