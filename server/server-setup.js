@@ -1,6 +1,6 @@
 const { Client } = require('ssh2');
 
-function generateNodeSetupScript(masterUrl, nodeSecret, nodeId, domain) {
+function generateNodeSetupScript(masterUrl, nodeSecret, nodeId, domain, cloudflareToken) {
   return `
 export DEBIAN_FRONTEND=noninteractive
 export NEEDRESTART_MODE=a
@@ -228,8 +228,43 @@ module.exports = {
 };
 PM2CONF
 
+# SSL Certificate Setup
+SSL_CERT="/etc/ssl/certs/ssl-cert-snakeoil.pem"
+SSL_KEY="/etc/ssl/private/ssl-cert-snakeoil.key"
+${cloudflareToken ? `
+CF_TOKEN="${cloudflareToken}"
+PROXY_DOMAIN="${domain}"
+if [ -n "$CF_TOKEN" ] && [ -n "$PROXY_DOMAIN" ]; then
+  apt-get install -y certbot python3-certbot-dns-cloudflare 2>/dev/null || {
+    apt-get update -y
+    apt-get install -y certbot python3-certbot-dns-cloudflare
+  }
+
+  mkdir -p /etc/letsencrypt
+  cat > /etc/letsencrypt/cloudflare.ini << CFINI
+dns_cloudflare_api_token = $CF_TOKEN
+CFINI
+  chmod 600 /etc/letsencrypt/cloudflare.ini
+
+  certbot certonly --dns-cloudflare \\
+    --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini \\
+    -d "*.$PROXY_DOMAIN" \\
+    --non-interactive --agree-tos \\
+    --register-unsafely-without-email \\
+    --dns-cloudflare-propagation-seconds 30 2>&1 || echo "Certbot failed, using snakeoil certs"
+
+  if [ -f "/etc/letsencrypt/live/$PROXY_DOMAIN/fullchain.pem" ]; then
+    SSL_CERT="/etc/letsencrypt/live/$PROXY_DOMAIN/fullchain.pem"
+    SSL_KEY="/etc/letsencrypt/live/$PROXY_DOMAIN/privkey.pem"
+    echo "SSL: Using Let's Encrypt wildcard certificate for *.$PROXY_DOMAIN"
+  else
+    echo "SSL: Cert not found, falling back to snakeoil"
+  fi
+fi
+` : '# No Cloudflare token provided, using snakeoil SSL certs'}
+
 # Configure Nginx
-cat > /etc/nginx/sites-available/proxyxpass-node << 'NGINXCONF'
+cat > /etc/nginx/sites-available/proxyxpass-node << NGINXCONF
 server {
     listen 80;
     listen 443 ssl;
@@ -245,8 +280,8 @@ server {
     listen 9982;
     server_name _;
 
-    ssl_certificate /etc/ssl/certs/ssl-cert-snakeoil.pem;
-    ssl_certificate_key /etc/ssl/private/ssl-cert-snakeoil.key;
+    ssl_certificate $SSL_CERT;
+    ssl_certificate_key $SSL_KEY;
 
     client_max_body_size 50m;
     proxy_buffering off;
@@ -254,12 +289,12 @@ server {
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Upgrade \\$http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host \\$host;
+        proxy_set_header X-Real-IP \\$remote_addr;
+        proxy_set_header X-Forwarded-For \\$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \\$scheme;
         proxy_connect_timeout 300s;
         proxy_send_timeout 300s;
         proxy_read_timeout 300s;
@@ -294,10 +329,10 @@ echo "PROXYXPASS_NODE_SETUP_COMPLETE"
 }
 
 function setupServer(ip, port, username, password, options = {}) {
-  const { masterUrl, nodeSecret, nodeId, domain } = options;
+  const { masterUrl, nodeSecret, nodeId, domain, cloudflareToken } = options;
 
   const script = (masterUrl && nodeSecret)
-    ? generateNodeSetupScript(masterUrl, nodeSecret, nodeId || '', domain || '')
+    ? generateNodeSetupScript(masterUrl, nodeSecret, nodeId || '', domain || '', cloudflareToken || '')
     : getSquidScript();
 
   return new Promise((resolve, reject) => {

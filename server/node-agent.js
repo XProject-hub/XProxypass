@@ -561,7 +561,7 @@ function handleProxyResponse(proxyRes, req, res, record, proxyHost) {
     contentType.includes('mpegurl') || contentType.includes('x-mpegURL') ||
     contentType.includes('xml') || contentType.includes('vnd.apple') ||
     contentType.includes('javascript') ||
-    (record.stream_proxy === 2 && contentType.includes('octet-stream') && isM3U);
+    (contentType.includes('octet-stream') && isM3U);
 
   if (isRewritable) {
     const chunks = [];
@@ -578,9 +578,37 @@ function handleProxyResponse(proxyRes, req, res, record, proxyHost) {
       }
 
       let body = raw.toString('utf8');
-      body = record.stream_proxy === 2 ? rewriteAll(body) : rewriteUrl(body);
-      body = body.replace(/<base\s+href=["'][^"']*["']/gi, `<base href="https://${proxyHost}/"`);
-      body = body.replace(/(<head[^>]*>)/i, `$1<script>if(window.location.hostname!=='${proxyHost}'){window.location.hostname='${proxyHost}';}</script>`);
+
+      if (record.stream_proxy === 2) {
+        body = rewriteAll(body);
+      } else {
+        const trimmedBody = body.trimStart();
+        const isM3UBody = trimmedBody.startsWith('#EXTM3U') || trimmedBody.startsWith('#EXTINF');
+
+        if (isM3UBody) {
+          // DNS proxy: don't rewrite stream URLs - streams go directly to original server
+        } else if (body.includes('"server_info"') || (body.includes('"url"') && body.includes('"port"'))) {
+          try {
+            const json = JSON.parse(body);
+            if (json.server_info) {
+              json.server_info.url = proxyHostname;
+              json.server_info.port = req.headers['x-forwarded-port'] || '80';
+              if (json.server_info.https_port) json.server_info.https_port = '443';
+            }
+            body = JSON.stringify(json);
+          } catch {
+            body = rewriteUrl(body);
+          }
+        } else {
+          body = rewriteUrl(body);
+        }
+      }
+
+      const isHtmlResponse = contentType.includes('text/html') || (body.includes('<html') && body.includes('<head'));
+      if (isHtmlResponse) {
+        body = body.replace(/<base\s+href=["'][^"']*["']/gi, `<base href="https://${proxyHost}/"`);
+        body = body.replace(/(<head[^>]*>)/i, `$1<script>if(window.location.hostname!=='${proxyHost}'){window.location.hostname='${proxyHost}';}</script>`);
+      }
 
       delete newHeaders['content-length'];
       delete newHeaders['content-encoding'];

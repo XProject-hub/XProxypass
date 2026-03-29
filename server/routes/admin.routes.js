@@ -342,6 +342,7 @@ router.post('/servers', async (req, res) => {
         nodeSecret: config.nodeSecret,
         nodeId: String(server.id),
         domain: config.domain,
+        cloudflareToken: config.cloudflareToken,
       });
       db.updateServerStatus(server.id, 'online');
       db.addActivityLog(req.user.id, req.user.username, req.ip, 'Server', 'InstallSuccess', `${ip} (${country}) - Node Agent installed`);
