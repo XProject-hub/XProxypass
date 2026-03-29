@@ -460,7 +460,9 @@ app.use((req, res, next) => {
 
       const reqPath = (req.url || '').toLowerCase();
       const isM3URequest = reqPath.includes('get.php') || reqPath.includes('.m3u') || reqPath.includes('.m3u8') ||
-        reqPath.includes('player_api') || reqPath.includes('xmltv') || reqPath.includes('epg');
+        reqPath.includes('player_api') || reqPath.includes('xmltv') || reqPath.includes('epg') ||
+        reqPath.includes('playlist') || reqPath.includes('play/list') ||
+        reqPath.includes('type=m3u') || reqPath.includes('output=m3u') || reqPath.includes('output=ts');
 
       const isRewritable = contentType.includes('text') || contentType.includes('json') ||
         contentType.includes('mpegurl') || contentType.includes('x-mpegURL') ||
