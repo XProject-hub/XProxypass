@@ -486,6 +486,9 @@ app.use((req, res, next) => {
 
           body = record.stream_proxy === 2 ? rewriteAllExternalUrls(body) : rewriteUrl(body);
 
+          // Fix broken double-scheme patterns (e.g. "https,http://host" → "https://host")
+          body = body.replace(/(https?),https?:\/\//g, '$1://');
+
           if (body.includes('"server_info"') && body.includes('"url"')) {
             try {
               const json = JSON.parse(body);
